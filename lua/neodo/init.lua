@@ -1,6 +1,6 @@
 local M = {}
 
-local utils = require 'utils'
+local utils = require 'neodo.utils'
 
 -- list of currently running jobs
 local system_jobs = {}
@@ -11,6 +11,10 @@ local system_jobs_lines = {}
 local notify = require 'notify'
 -- local notification = require("neogit.lib.notification")
 local notification_timeout = 2500
+
+local latest_buf_id = nil
+
+local latest_win_id = nil
 
 -- default plugin settings
 local settings = {
@@ -46,7 +50,6 @@ local settings = {
         mongoose = {
             commands = {
                 build = {
-                    start_in_terminal = true,
                     name = "Build",
                     cmd = 'mos build --platform esp32 --local',
                     errorformat = [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]]
@@ -64,7 +67,8 @@ local settings = {
     qf_open_on_start = false,
     qf_open_on_stop = false,
     qf_open_on_error = true,
-    qf_close_on_success = false
+    qf_close_on_success = true,
+    terminal_close_on_success = true
 }
 
 local function notify_info(text, header)
@@ -143,6 +147,9 @@ end
 local function on_command_success(command, return_code)
     local text = command.name .. ' SUCCESS(' .. return_code .. ')'
     notify_info('OK', text)
+    if not command.run_as_background_job and settings.terminal_close_on_success then
+        utils.close_win(latest_win_id)
+    end
     if settings.qf_close_on_success then vim.api.nvim_command("cclose") end
 end
 
@@ -201,19 +208,18 @@ local function start_system_command(command)
     if settings.qf_open_on_start then vim.api.nvim_command("copen") end
 end
 
-local latest_buf_id = nil
-
 local function start_terminal_command(command)
 
     -- check if a buffer with the latest id is already open, if it is then
     -- delete it and continue
     utils.delete_buf(latest_buf_id)
+    utils.close_win(latest_win_id)
 
     -- create the new buffer
     latest_buf_id = vim.api.nvim_create_buf(false, true)
 
     -- split the window to create a new buffer and set it to our window
-    utils.split(false, latest_buf_id)
+    latest_win_id = utils.split(false, latest_buf_id)
 
     -- make the new buffer smaller
     utils.resize(false, "-5")
@@ -224,23 +230,27 @@ local function start_terminal_command(command)
 
     -- when the buffer is closed, set the latest buf id to nil else there are
     -- some edge cases with the id being sit but a buffer not being open
-    local function onDetach(_, _) latest_buf_id = nil end
+    local function onDetach(_, _)
+        latest_buf_id = nil
+        latest_win_id = nil
+    end
     vim.api.nvim_buf_attach(latest_buf_id, false, {on_detach = onDetach})
 
-    local expanded_cmd = vim.fn.expandcmd(command.cmd)
-
     -- run the command
+    local expanded_cmd = vim.fn.expandcmd(command.cmd)
     local job_id = vim.fn.termopen(expanded_cmd, {
         on_stderr = on_event,
         on_stdout = on_event,
         on_exit = on_event,
         stdout_buffered = false,
-        stderr_buffered = false
+        stderr_buffered = false,
+        name = 'NeoDo >> ' .. expanded_cmd
     })
+
+    vim.cmd('keepalt file ' .. 'NeoDo >> ' .. expanded_cmd)
 
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
-
 
     local text = command.name .. ' STARTED IN TERMINAL'
     notify_info(expanded_cmd, text)
@@ -251,10 +261,10 @@ local function start_command(command)
     if type(command.cmd) == 'function' then
         start_function(command)
     else
-        if command.start_in_terminal then
-            start_terminal_command(command)
-        else
+        if command.run_as_background_job then
             start_system_command(command)
+        else
+            start_terminal_command(command)
         end
     end
 
