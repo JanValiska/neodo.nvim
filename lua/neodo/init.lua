@@ -270,7 +270,7 @@ function M.setup(config)
     if config then settings = vim.tbl_deep_extend('force', settings, config) end
     vim.api.nvim_exec([[
      augroup Mongoose
-       autocmd BufEnter * lua require'projects'.buffer_entered()
+       autocmd BufEnter * lua require'neodo'.buffer_entered()
      augroup end
     ]], false)
 end
