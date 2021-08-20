@@ -244,10 +244,9 @@ local function start_terminal_command(command)
         on_exit = on_event,
         stdout_buffered = false,
         stderr_buffered = false,
-        name = 'NeoDo >> ' .. expanded_cmd
     })
 
-    vim.cmd('keepalt file ' .. 'NeoDo >> ' .. expanded_cmd)
+    vim.cmd('keepalt file ' .. 'NeoDo: ' .. expanded_cmd)
 
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
