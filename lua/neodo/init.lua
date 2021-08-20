@@ -61,10 +61,10 @@ local settings = {
             on_attach = nil
         }
     },
-    qf_open_on_start = true,
+    qf_open_on_start = false,
     qf_open_on_stop = false,
     qf_open_on_error = true,
-    qf_close_on_success = true
+    qf_close_on_success = false
 }
 
 local function notify_info(text, header)
