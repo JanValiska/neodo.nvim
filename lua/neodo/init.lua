@@ -67,6 +67,7 @@ local settings = {
     qf_open_on_start = false,
     qf_open_on_stop = false,
     qf_open_on_error = true,
+    qf_close_on_start = true,
     qf_close_on_success = true,
     terminal_close_on_success = true
 }
@@ -219,7 +220,7 @@ local function start_terminal_command(command)
     latest_buf_id = vim.api.nvim_create_buf(false, true)
 
     -- split the window to create a new buffer and set it to our window
-    latest_win_id = utils.split(false, latest_buf_id)
+    latest_win_id = utils.aboveleft_split(latest_buf_id)
 
     -- make the new buffer smaller
     utils.resize(false, "-5")
@@ -256,7 +257,7 @@ local function start_terminal_command(command)
 end
 
 local function start_command(command)
-
+    if settings.qf_close_on_start then vim.api.nvim_command("cclose") end
     if type(command.cmd) == 'function' then
         start_function(command)
     else
@@ -280,6 +281,13 @@ function M.setup(config)
     vim.api.nvim_exec([[
      augroup Mongoose
        autocmd BufEnter * lua require'neodo'.buffer_entered()
+     augroup end
+    ]], false)
+
+    vim.api.nvim_exec([[
+     augroup qf
+        autocmd!
+        autocmd FileType qf set nobuflisted
      augroup end
     ]], false)
 end

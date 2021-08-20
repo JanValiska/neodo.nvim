@@ -8,6 +8,20 @@ function M.split(vertical, bufnr)
     return win
 end
 
+function M.belowright_split(bufnr)
+    vim.cmd('belowright split')
+    local win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(win, bufnr)
+    return win
+end
+
+function M.aboveleft_split(bufnr)
+    vim.cmd('aboveleft split')
+    local win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(win, bufnr)
+    return win
+end
+
 function M.resize(vertical, amount)
     local cmd = vertical and "vertical resize " or "resize"
     cmd = cmd .. amount
