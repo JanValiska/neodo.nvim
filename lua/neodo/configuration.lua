@@ -4,16 +4,10 @@ local uv = vim.loop
 local out_of_source_config_file_name = 'neodo.lua'
 local in_the_source_config_file_name = '.neodo.lua'
 
-local base_data_path = vim.fn.stdpath("data")
+local dp = vim.fn.stdpath("data")
+local base_data_path = dp .. '/neodo'
 
-function M.project_hash(project_path)
-    return vim.fn.sha256(project_path)
-end
-
-function M.stringize_path(project_path)
-    local r, _ = string.gsub(project_path, '/', '%%')
-    return r
-end
+function M.project_hash(project_path) return vim.fn.sha256(project_path) end
 
 local function dir_exists(dir)
     local stat = uv.fs_stat(dir)
@@ -28,18 +22,21 @@ local function file_exists(file)
 end
 
 local function ensure_project_data_path(project_path, callback)
-    local project_data_path = M.get_project_data_path(project_path)
-    if not dir_exists(project_path) then
-        uv.fs_mkdir(project_data_path, 448, callback)
-    else
-        callback()
+    if dir_exists(base_data_path) == false then
+        uv.fs_mkdir(base_data_path, 448)
     end
+
+    local project_data_path = M.get_project_data_path(project_path)
+    if dir_exists(project_data_path) == false then
+        uv.fs_mkdir(project_data_path, 448)
+    end
+    callback()
 end
 
 function M.get_data_path() return base_data_path end
 
 function M.get_project_data_path(project_path)
-    return base_data_path .. '/' .. M.stringize_path(project_path)
+    return base_data_path .. '/' .. M.project_hash(project_path)
 end
 
 function M.get_project_out_of_source_config(project_path)
@@ -65,6 +62,7 @@ function M.has_project_out_of_source_config(project_path)
 end
 
 function M.has_project_in_the_source_config(project_path)
+    print(project_path)
     local in_the_source_config_file = M.get_project_in_the_source_config(
                                           project_path)
     if file_exists(in_the_source_config_file) then return true end
@@ -72,9 +70,17 @@ function M.has_project_in_the_source_config(project_path)
 end
 
 function M.create_out_of_source_config_file(project_path, callback)
+    print("PP: " .. vim.inspect(project_path))
     ensure_project_data_path(project_path, function()
         local config_file = M.get_project_out_of_source_config(project_path)
-        local fd = uv.fs_open(config_file, "w")
+        print("CF: " .. vim.inspect(config_file))
+        local fd = uv.fs_open(config_file, "w", 444)
+        -- uv.fs_write(fd, [[
+        -- local M = {
+        -- --config here
+        -- }
+        -- return M
+        -- ]], nil, nil)
         uv.fs_close(fd)
         callback(config_file)
     end)
@@ -82,7 +88,13 @@ end
 
 function M.create_in_the_source_config_file(project_path, callback)
     local config_file = M.get_project_in_the_source_config(project_path)
-    local fd = uv.fs_open(config_file, "w")
+    local fd = uv.fs_open(config_file, "w", 444)
+    -- uv.fs_write(fd, [[
+    -- local M = {
+    -- --config here
+    -- }
+    -- return M
+    -- ]], nil, nil)
     uv.fs_close(fd)
     callback(config_file)
 end

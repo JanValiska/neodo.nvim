@@ -9,6 +9,15 @@ local log = require 'neodo.log'
 -- per project configurations
 local projects = {}
 
+local function load_and_get_merged_config(project_specific_config_file,
+                                          global_project_config)
+    local config = assert(loadfile(project_specific_config_file))()
+    if config == nil then
+        return global_project_config
+    end
+    return vim.tbl_deep_extend('force', global_project_config, config)
+end
+
 -- called when project root is detected
 local function on_project_root(p)
     -- p is nil when no root is detected
@@ -17,33 +26,52 @@ local function on_project_root(p)
     local hash = configuration.project_hash(p.dir)
     vim.b.project_hash = hash
 
+    -- ensure project dir is created
+
+    local global_project_settings = global_settings.project_type[p.type]
+
     if projects[hash] == nil then
         if configuration.has_project_in_the_source_config(p.dir) then
             log('Using .neodo config')
             projects[hash] = {
+                path = p.dir,
                 type = p.type,
                 settings_type = 2,
-                settings = require(
-                    configuration.get_project_in_the_source_config(p.dir)).settings
+                settings = load_and_get_merged_config(
+                    configuration.get_project_in_the_source_config(p.dir),
+                    global_project_settings)
             }
         elseif configuration.has_project_out_of_source_config(p.dir) then
             log('Using out of source neodo config')
             projects[hash] = {
+                path = p.dir,
                 type = p.type,
                 settings_type = 1,
-                settings = require(
-                    configuration.get_project_in_the_source_config(p.dir)).settings
+                settings = load_and_get_merged_config(
+                    configuration.get_project_out_of_source_config(p.dir),
+                    global_project_settings)
             }
         else
             log('Using global config')
-            projects[hash] = {type = p.type, settings_type = 0}
+            projects[hash] = {
+                path = p.dir,
+                type = p.type,
+                settings_type = 0,
+                settings = global_project_settings
+            }
         end
     end
 
-    if projects[hash].settings_type == 0 then
-        local settings = global_settings.project_type[p.type]
-        if settings.on_attach ~= nil then settings.on_attach() end
+    -- call also global on attach function if shouldn't be skipped
+    if projects[hash].settings.skip_global_on_attach ~= nil and
+        projects[hash].settings.skip_global_on_attach == false then
+        local on_attach = projects[hash].settings.on_attach
+        if on_attach and type(on_attach) == 'function' then on_attach() end
     end
+
+    -- call project specific on attach
+    local on_attach = projects[hash].settings.on_attach
+    if on_attach and type(on_attach) == 'function' then on_attach() end
 end
 
 -- called when the buffer is entered first time
@@ -63,13 +91,7 @@ function M.run(command_key)
     end
 
     local project = projects[vim.b.project_hash]
-    local command
-    if project.settings_type == 0 then
-        local type = project.type
-        command = global_settings.project_type[type].commands[command_key]
-    else
-        command = project.settings.commands[command_key]
-    end
+    local command = project.settings.commands[command_key]
     if command == nil then
         log('Unknown command \'' .. command_key .. '\'')
     else
@@ -81,14 +103,52 @@ function M.completions_helper()
     local project_hash = vim.b.project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
-        if project.settings_type == 0 then
-            return vim.tbl_keys(global_settings.project_type[project.type]
-                                    .commands)
-        else
-            return vim.tbl_keys(project.commands)
-        end
+        return vim.tbl_keys(project.settings.commands)
     end
     return {}
+end
+
+function M.edit_project_settings()
+    local project_hash = vim.b.project_hash
+    if project_hash ~= nil then
+        local project = projects[project_hash]
+        if project.settings_type == 2 then
+            vim.api.nvim_exec(":e " ..
+                                  configuration.get_project_in_the_source_config(
+                                      project.path), false)
+        elseif project.settings_type == 1 then
+            vim.api.nvim_exec(":e " ..
+                                  configuration.get_project_out_of_source_config(
+                                      project.path), false)
+        else
+            local ans = vim.fn.input(
+                            "Project config doesn't exists. Create OutOfSource(o), InTheSource(i), Cancel(c): ")
+            if ans == 'o' then
+                print("Creating Out of source config")
+                configuration.create_out_of_source_config_file(project.path,
+                                                               function(path)
+                    if path ~= nil then
+                        vim.api.nvim_exec(":e " .. path, false)
+                    end
+                end)
+            elseif ans == 'i' then
+                print("Creating in the source config")
+                configuration.create_in_the_source_config_file(project.path,
+                                                               function(path)
+                    if path ~= nil then
+                        vim.api.nvim_exec(":e " .. path, false)
+                    end
+                end)
+            else
+                print("Canceling")
+                return
+            end
+
+        end
+    else
+        log(
+            "Cannot edit project settings. Current buffer is not part of project.")
+    end
 end
 
 function M.setup(config)
@@ -112,16 +172,20 @@ function M.setup(config)
         function! NeodoCompletionsHelper(ArgLead, CmdLine, CursorPos)
             return luaeval("require('neodo').completions_helper()")
         endfunction
-    ]],false)
+    ]], false)
 
     vim.api.nvim_exec([[
         function! Neodo(command_key)
             :call luaeval("require'neodo'.run(_A)", a:command_key)
         endfunction
-    ]],false)
+    ]], false)
 
     vim.api.nvim_exec([[
     command! -nargs=1 -complete=customlist,NeodoCompletionsHelper Neodo call Neodo("<args>")
+    ]], false)
+
+    vim.api.nvim_exec([[
+    command! NeodoEditProjectSettings call luaeval("require'neodo'.edit_project_settings()")
     ]], false)
 end
 
