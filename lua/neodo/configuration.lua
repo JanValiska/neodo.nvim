@@ -2,7 +2,7 @@ local M = {}
 local uv = vim.loop
 
 local out_of_source_config_file_name = 'neodo.lua'
-local in_the_source_config_file_name = '.neodo.lua'
+local in_the_source_config_file_name = '.neodo'
 
 local dp = vim.fn.stdpath("data")
 local base_data_path = dp .. '/neodo'
@@ -62,41 +62,61 @@ function M.has_project_out_of_source_config(project_path)
 end
 
 function M.has_project_in_the_source_config(project_path)
-    print(project_path)
     local in_the_source_config_file = M.get_project_in_the_source_config(
                                           project_path)
     if file_exists(in_the_source_config_file) then return true end
     return false
 end
 
+local function write_template(path, template, callback)
+    uv.fs_open(path, "w", 444, function(err, fd)
+        if err then
+            print('Cannot open file: ' .. path)
+        else
+            uv.fs_write(fd, template, 0, function(err1, _)
+                if err1 then
+                    print('Cannot write template: ' .. path)
+                else
+                    uv.fs_close(fd, function(err2)
+                        if err2 then
+                            print('Cannot close file: ' .. err2)
+                        else
+                            vim.schedule(function()
+                                callback(path)
+                            end)
+                        end
+                    end)
+                end
+            end)
+        end
+    end)
+end
+
+local out_of_source_template = [[
+local M = {
+--config here
+}
+return M
+]]
+
+local in_the_source_template = [[
+#!/usr/bin/lua
+local M = {
+--config here
+}
+return M
+]]
+
 function M.create_out_of_source_config_file(project_path, callback)
-    print("PP: " .. vim.inspect(project_path))
     ensure_project_data_path(project_path, function()
         local config_file = M.get_project_out_of_source_config(project_path)
-        print("CF: " .. vim.inspect(config_file))
-        local fd = uv.fs_open(config_file, "w", 444)
-        -- uv.fs_write(fd, [[
-        -- local M = {
-        -- --config here
-        -- }
-        -- return M
-        -- ]], nil, nil)
-        uv.fs_close(fd)
-        callback(config_file)
+        write_template(config_file, out_of_source_template, callback)
     end)
 end
 
 function M.create_in_the_source_config_file(project_path, callback)
     local config_file = M.get_project_in_the_source_config(project_path)
-    local fd = uv.fs_open(config_file, "w", 444)
-    -- uv.fs_write(fd, [[
-    -- local M = {
-    -- --config here
-    -- }
-    -- return M
-    -- ]], nil, nil)
-    uv.fs_close(fd)
-    callback(config_file)
+    write_template(config_file, in_the_source_template, callback)
 end
 
 return M

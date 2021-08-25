@@ -12,9 +12,7 @@ local projects = {}
 local function load_and_get_merged_config(project_specific_config_file,
                                           global_project_config)
     local config = assert(loadfile(project_specific_config_file))()
-    if config == nil then
-        return global_project_config
-    end
+    if config == nil then return global_project_config end
     return vim.tbl_deep_extend('force', global_project_config, config)
 end
 
@@ -62,16 +60,24 @@ local function on_project_root(p)
         end
     end
 
+    local call_global_on_attach = true
+
     -- call also global on attach function if shouldn't be skipped
-    if projects[hash].settings.skip_global_on_attach ~= nil and
-        projects[hash].settings.skip_global_on_attach == false then
-        local on_attach = projects[hash].settings.on_attach
+    if projects[hash].settings.skip_global_on_attach and
+        projects[hash].settings.skip_global_on_attach == true then
+        call_global_on_attach = false
+    end
+
+    if call_global_on_attach then
+        local on_attach = global_project_settings.on_attach
         if on_attach and type(on_attach) == 'function' then on_attach() end
     end
 
     -- call project specific on attach
     local on_attach = projects[hash].settings.on_attach
-    if on_attach and type(on_attach) == 'function' then on_attach() end
+    if on_attach ~= global_project_settings.on_attach then
+        if on_attach and type(on_attach) == 'function' then on_attach() end
+    end
 end
 
 -- called when the buffer is entered first time
@@ -109,6 +115,16 @@ function M.completions_helper()
 end
 
 function M.edit_project_settings()
+
+    local function string_split(inputstr, sep)
+        if sep == nil then sep = "%s" end
+        local t = {}
+        for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+            table.insert(t, str)
+        end
+        return t
+    end
+
     local project_hash = vim.b.project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
@@ -129,6 +145,7 @@ function M.edit_project_settings()
                                                                function(path)
                     if path ~= nil then
                         vim.api.nvim_exec(":e " .. path, false)
+                        project.settings_type = 1
                     end
                 end)
             elseif ans == 'i' then
@@ -137,6 +154,7 @@ function M.edit_project_settings()
                                                                function(path)
                     if path ~= nil then
                         vim.api.nvim_exec(":e " .. path, false)
+                        project.settings_type = 2
                     end
                 end)
             else
@@ -157,7 +175,7 @@ function M.setup(config)
     end
     vim.api.nvim_exec([[
      augroup Mongoose
-       autocmd BufEnter * lua require'neodo'.buffer_entered()
+       autocmd BufNewFile,BufRead * lua require'neodo'.buffer_entered()
      augroup end
     ]], false)
 
