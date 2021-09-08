@@ -5,6 +5,7 @@ local global_settings = require 'neodo.settings'
 local root = require 'neodo.root'
 local neodo = require 'neodo.do'
 local log = require 'neodo.log'
+local notify = require 'neodo.notify'
 
 -- per project configurations
 local projects = {}
@@ -78,12 +79,38 @@ local function on_project_root(p)
     if on_attach ~= global_project_settings.on_attach then
         if on_attach and type(on_attach) == 'function' then on_attach() end
     end
+
+    if global_settings.change_root then
+        vim.api.nvim_set_current_dir(p.dir)
+        if global_settings.change_root_notify then
+            notify.info(p.dir, "Working directory changed")
+        end
+    end
 end
+
+local filetype_ignore = {
+    'qf'
+}
+
+local buftype_permit = {
+    '',
+    'nowrite'
+}
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
     local ft = vim.bo.filetype
+
     if ft == '' then return end
+
+    if vim.tbl_contains(filetype_ignore, ft) then
+        return
+    end
+
+    if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then
+        return
+    end
+
     local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
     if basepath == nil then return end
     root.find_project_root_and_type(basepath, on_project_root)
@@ -115,16 +142,6 @@ function M.completions_helper()
 end
 
 function M.edit_project_settings()
-
-    local function string_split(inputstr, sep)
-        if sep == nil then sep = "%s" end
-        local t = {}
-        for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
-            table.insert(t, str)
-        end
-        return t
-    end
-
     local project_hash = vim.b.project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
@@ -138,9 +155,8 @@ function M.edit_project_settings()
                                       project.path), false)
         else
             local ans = vim.fn.input(
-                            "Project config doesn't exists. Create OutOfSource(o), InTheSource(i), Cancel(c): ")
+                            "Create project config out of source(o), in the source(i), cancel(c): ")
             if ans == 'o' then
-                print("Creating Out of source config")
                 configuration.create_out_of_source_config_file(project.path,
                                                                function(path)
                     if path ~= nil then
@@ -149,7 +165,6 @@ function M.edit_project_settings()
                     end
                 end)
             elseif ans == 'i' then
-                print("Creating in the source config")
                 configuration.create_in_the_source_config_file(project.path,
                                                                function(path)
                     if path ~= nil then
@@ -169,7 +184,15 @@ function M.edit_project_settings()
     end
 end
 
+local function register_built_in_project_types()
+    require'neodo.projects.mongoose'.register()
+    require'neodo.projects.cmake'.register()
+    require'neodo.projects.vim'.register()
+end
+
 function M.setup(config)
+    register_built_in_project_types()
+
     if config then
         global_settings = vim.tbl_deep_extend('force', global_settings, config)
     end

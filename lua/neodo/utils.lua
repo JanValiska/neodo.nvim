@@ -1,4 +1,14 @@
 local M = {}
+function M.tbl_join(tbl, sep)
+    local r = ''
+    local size = vim.tbl_count(tbl)
+    for i, value in ipairs(tbl) do
+        r = r .. value
+        if i < size then r = r .. sep end
+    end
+    return r
+end
+
 function M.split(vertical, bufnr)
     local cmd = vertical and "vsplit" or "split"
 

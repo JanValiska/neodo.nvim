@@ -5,30 +5,18 @@ local system_jobs = {}
 
 local global_settings = require 'neodo.settings'
 local utils = require 'neodo.utils'
+local notify = require 'neodo.notify'
 
 -- key/value store for lines produced by currently running jobs
 local system_jobs_lines = {}
-
-local notify = require 'notify'
--- local notification = require("neogit.lib.notification")
-local notification_timeout = 2500
 
 local latest_buf_id = nil
 
 local latest_win_id = nil
 
-local function notify_info(text, header)
-    -- notification.create("TEST")
-    notify(text, nil, {title = header, timeout = notification_timeout})
-end
--- local function notify_warning(text, header) notify(text, 'warning', {title = header, timeout = notification_timeout}) end
-local function notify_error(text, header)
-    notify(text, 'error', {title = header, timeout = notification_timeout})
-end
-
 local function on_command_success(command, return_code)
     local text = command.name .. ' SUCCESS(' .. return_code .. ')'
-    notify_info('OK', text)
+    notify.info('OK', text)
     if not command.run_as_background_job and
         global_settings.terminal_close_on_success then
         utils.close_win(latest_win_id)
@@ -40,7 +28,7 @@ end
 
 local function on_command_failed(command, return_code)
     local text = command.name .. ' FAILED(' .. return_code .. ')'
-    notify_error('NOK', text)
+    notify.error('NOK', text)
     if global_settings.qf_open_on_error then vim.api.nvim_command("copen") end
 end
 
@@ -72,15 +60,24 @@ local function on_event(job_id, data, event)
     end
 end
 
-local function start_function(command)
-    command.cmd()
-    notify_info("", command.name .. ' EXECUTED')
+local function get_cmd_string(command) 
+    local cmd = nil
+    if(type(command.cmd) == 'function') then
+        cmd = command.cmd(command.params)
+    else
+        cmd = vim.fn.expandcmd(command.cmd)
+    end
+    return cmd
 end
 
-local function start_system_command(command)
-    local expanded_cmd = vim.fn.expandcmd(command.cmd)
+local function start_function_command(command)
+    command.cmd()
+    notify.info("", command.name .. ' EXECUTED')
+end
 
-    local job_id = vim.fn.jobstart(expanded_cmd, {
+local function start_background_command(command)
+    local cmd = get_cmd_string(command)
+    local job_id = vim.fn.jobstart(cmd, {
         on_stderr = on_event,
         on_stdout = on_event,
         on_exit = on_event,
@@ -91,7 +88,7 @@ local function start_system_command(command)
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
     local text = command.name .. ' STARTED'
-    notify_info(expanded_cmd, text)
+    notify.info(cmd, text)
     if global_settings.qf_open_on_start then vim.api.nvim_command("copen") end
 end
 
@@ -124,8 +121,8 @@ local function start_terminal_command(command)
     vim.api.nvim_buf_attach(latest_buf_id, false, {on_detach = onDetach})
 
     -- run the command
-    local expanded_cmd = vim.fn.expandcmd(command.cmd)
-    local job_id = vim.fn.termopen(expanded_cmd, {
+    local cmd = get_cmd_string(command)
+    local job_id = vim.fn.termopen(cmd, {
         on_stderr = on_event,
         on_stdout = on_event,
         on_exit = on_event,
@@ -133,27 +130,24 @@ local function start_terminal_command(command)
         stderr_buffered = false
     })
 
-    vim.cmd('keepalt file ' .. 'NeoDo: ' .. expanded_cmd)
+    vim.cmd('keepalt file ' .. 'NeoDo: ' .. cmd)
 
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
 
     local text = command.name .. ' STARTED IN TERMINAL'
-    notify_info(expanded_cmd, text)
+    notify.info(cmd, text)
 end
 
 function M.command(command)
     if global_settings.qf_close_on_start then vim.api.nvim_command("cclose") end
-    if type(command.cmd) == 'function' then
-        start_function(command)
+    if command.type == 'function' then
+        start_function_command(command)
+    elseif command.type == 'background' then
+        start_background_command(command)
     else
-        if command.run_as_background_job then
-            start_system_command(command)
-        else
-            start_terminal_command(command)
-        end
+        start_terminal_command(command)
     end
-
 end
 
 return M
