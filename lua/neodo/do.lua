@@ -24,12 +24,16 @@ local function on_command_success(command, return_code)
     if global_settings.qf_close_on_success then
         vim.api.nvim_command("cclose")
     end
+
+    if command.on_success then command.on_success() end
 end
 
 local function on_command_failed(command, return_code)
     local text = command.name .. ' FAILED(' .. return_code .. ')'
     notify.error('NOK', text)
-    if global_settings.qf_open_on_error then vim.api.nvim_command("copen") end
+    if global_settings.qf_open_on_error and command.errorformat then
+        vim.api.nvim_command("copen")
+    end
 end
 
 local function on_event(job_id, data, event)
@@ -39,19 +43,21 @@ local function on_event(job_id, data, event)
 
     if event == "exit" then
         local command = system_jobs[job_id]
-        vim.fn.setqflist({}, ' ', {
-            title = command.cmd,
-            efm = command.errorformat,
-            lines = system_jobs_lines[job_id]
-        })
-        vim.api.nvim_command("doautocmd QuickFixCmdPost")
+        if command.errorformat then
+            vim.fn.setqflist({}, ' ', {
+                title = command.cmd,
+                efm = command.errorformat,
+                lines = system_jobs_lines[job_id]
+            })
+            vim.api.nvim_command("doautocmd QuickFixCmdPost")
+        end
 
         if data == 0 then
             on_command_success(command, data)
         else
             on_command_failed(command, data)
         end
-        if global_settings.qf_open_on_stop then
+        if global_settings.qf_open_on_stop and command.errorformat then
             vim.api.nvim_command("copen")
         end
 
@@ -60,9 +66,9 @@ local function on_event(job_id, data, event)
     end
 end
 
-local function get_cmd_string(command) 
+local function get_cmd_string(command)
     local cmd = nil
-    if(type(command.cmd) == 'function') then
+    if (type(command.cmd) == 'function') then
         cmd = command.cmd(command.params)
     else
         cmd = vim.fn.expandcmd(command.cmd)
@@ -111,6 +117,8 @@ local function start_terminal_command(command)
     -- close the buffer when escape is pressed :)
     vim.api.nvim_buf_set_keymap(latest_buf_id, "n", "<Esc>", ":q<CR>",
                                 {noremap = true, silent = true})
+    vim.wo.number = false
+    vim.wo.relativenumber = false
 
     -- when the buffer is closed, set the latest buf id to nil else there are
     -- some edge cases with the id being sit but a buffer not being open
@@ -130,7 +138,7 @@ local function start_terminal_command(command)
         stderr_buffered = false
     })
 
-    vim.cmd('keepalt file ' .. 'NeoDo: ' .. cmd)
+    -- vim.cmd('keepalt file ' .. 'NeoDo: ' .. cmd)
 
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}

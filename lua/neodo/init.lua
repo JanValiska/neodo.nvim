@@ -1,5 +1,7 @@
 local M = {}
 
+local has_telescope, telescope = pcall(require, "telescope")
+
 local configuration = require 'neodo.configuration'
 local global_settings = require 'neodo.settings'
 local root = require 'neodo.root'
@@ -8,7 +10,7 @@ local log = require 'neodo.log'
 local notify = require 'neodo.notify'
 
 -- per project configurations
-local projects = {}
+local projects = require 'neodo.projects'
 
 local function load_and_get_merged_config(project_specific_config_file,
                                           global_project_config)
@@ -81,6 +83,7 @@ local function on_project_root(p)
     end
 
     if global_settings.change_root then
+        print(vim.inspect(p.dir))
         vim.api.nvim_set_current_dir(p.dir)
         if global_settings.change_root_notify then
             notify.info(p.dir, "Working directory changed")
@@ -88,14 +91,9 @@ local function on_project_root(p)
     end
 end
 
-local filetype_ignore = {
-    'qf'
-}
+local filetype_ignore = {'qf'}
 
-local buftype_permit = {
-    '',
-    'nowrite'
-}
+local buftype_permit = {'', 'nowrite'}
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
@@ -103,13 +101,9 @@ function M.buffer_entered()
 
     if ft == '' then return end
 
-    if vim.tbl_contains(filetype_ignore, ft) then
-        return
-    end
+    if vim.tbl_contains(filetype_ignore, ft) then return end
 
-    if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then
-        return
-    end
+    if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then return end
 
     local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
     if basepath == nil then return end
@@ -129,6 +123,27 @@ function M.run(command_key)
         log('Unknown command \'' .. command_key .. '\'')
     else
         neodo.command(command)
+    end
+end
+
+function M.neodo()
+    if vim.b.project_hash == nil then
+        log('Buffer not attached to any project')
+        return
+    else
+        if has_telescope then
+            telescope.extensions.neodo.neodo()
+        else
+            log("Provide command")
+        end
+    end
+end
+
+function M.handle_vim_command(command_key)
+    if command_key == nil or command_key == '' then
+        M.neodo()
+    else
+        M.run(command_key)
     end
 end
 
@@ -173,7 +188,7 @@ function M.edit_project_settings()
                     end
                 end)
             else
-                print("Canceling")
+                log("Canceling")
                 return
             end
 
@@ -190,8 +205,14 @@ local function register_built_in_project_types()
     require'neodo.projects.vim'.register()
 end
 
+local function register_telescope_extension()
+    if not has_telescope then return end
+    telescope.load_extension('neodo')
+end
+
 function M.setup(config)
     register_built_in_project_types()
+    register_telescope_extension()
 
     if config then
         global_settings = vim.tbl_deep_extend('force', global_settings, config)
@@ -217,12 +238,12 @@ function M.setup(config)
 
     vim.api.nvim_exec([[
         function! Neodo(command_key)
-            :call luaeval("require'neodo'.run(_A)", a:command_key)
+            :call luaeval("require'neodo'.handle_vim_command(_A)", a:command_key)
         endfunction
     ]], false)
 
     vim.api.nvim_exec([[
-    command! -nargs=1 -complete=customlist,NeodoCompletionsHelper Neodo call Neodo("<args>")
+    command! -nargs=? -complete=customlist,NeodoCompletionsHelper Neodo call Neodo("<args>")
     ]], false)
 
     vim.api.nvim_exec([[
