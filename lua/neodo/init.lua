@@ -38,25 +38,27 @@ local function load_project(dir, type)
 
     -- load project
     if configuration.has_project_in_the_source_config(dir) then
-        log('Using .neodo config')
+        notify.info(dir, "NeoDo: " .. type .. " project loaded(.neodo)")
         projects[hash] = {
             path = dir,
             type = type,
+            hash = hash,
             settings_type = 2,
             settings = load_and_get_merged_config(
                 configuration.get_project_in_the_source_config(dir), global_project_settings)
         }
     elseif configuration.has_project_out_of_source_config(dir) then
-        log('Using out of source neodo config')
+        notify.info(dir, "NeoDo: " .. type .. " project loaded(out of source)")
         projects[hash] = {
             path = dir,
             type = type,
+            hash = hash,
             settings_type = 1,
             settings = load_and_get_merged_config(
                 configuration.get_project_out_of_source_config(dir), global_project_settings)
         }
     else
-        log('Using global config')
+        notify.info(dir, "NeoDo: " .. type .. " project loaded(global)")
         projects[hash] = {
             path = dir,
             type = type,
