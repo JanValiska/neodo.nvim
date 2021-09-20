@@ -19,6 +19,15 @@ local function load_and_get_merged_config(project_specific_config_file,
     return vim.tbl_deep_extend('force', global_project_config, config)
 end
 
+local function change_root(dir)
+    if global_settings.change_root then
+        vim.api.nvim_set_current_dir(dir)
+        if global_settings.change_root_notify then
+            notify.info(dir, "Working directory changed")
+        end
+    end
+end
+
 -- called when project root is detected
 local function on_project_root(p)
     -- p is nil when no root is detected
@@ -82,12 +91,7 @@ local function on_project_root(p)
         if on_attach and type(on_attach) == 'function' then on_attach() end
     end
 
-    if global_settings.change_root then
-        vim.api.nvim_set_current_dir(p.dir)
-        if global_settings.change_root_notify then
-            notify.info(p.dir, "Working directory changed")
-        end
-    end
+    change_root(p.dir)
 end
 
 local filetype_ignore = {'qf'}
@@ -99,8 +103,8 @@ local function already_loaded()
 end
 
 local function change_root_if_already_loaded()
-    if already_loaded() and global_settings.change_root then
-        vim.api.nvim_set_current_dir(projects[vim.b.project_hash].path)
+    if already_loaded() then
+        change_root(projects[vim.b.project_hash].path)
         return true
     end
     return false

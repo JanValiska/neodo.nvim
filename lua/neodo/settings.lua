@@ -7,7 +7,7 @@ local M = {
     qf_close_on_success = true,
     terminal_close_on_success = true,
     change_root = true,
-    change_root_notify = true
+    change_root_notify = false
 }
 
 return M
