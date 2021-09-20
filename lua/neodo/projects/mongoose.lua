@@ -7,6 +7,10 @@ local log = require 'neodo.log'
 function M.build_cmd(params)
     local cmd = {'mos build'}
 
+    if not params then 
+        return nil
+    end
+
     -- Check platform param
     if params.platform == nil then
         log("Platform not specified")

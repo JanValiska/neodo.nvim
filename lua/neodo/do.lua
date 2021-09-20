@@ -6,6 +6,7 @@ local system_jobs = {}
 local global_settings = require 'neodo.settings'
 local utils = require 'neodo.utils'
 local notify = require 'neodo.notify'
+local log = require 'neodo.log'
 
 -- key/value store for lines produced by currently running jobs
 local system_jobs_lines = {}
@@ -15,8 +16,8 @@ local latest_buf_id = nil
 local latest_win_id = nil
 
 local function on_command_success(command, return_code)
-    local text = command.name .. ' SUCCESS(' .. return_code .. ')'
-    notify.info('OK', text)
+    local text = command.name .. ' SUCCESS'
+    notify.info('RC: ' .. return_code, text)
     if not command.run_as_background_job and
         global_settings.terminal_close_on_success then
         utils.close_win(latest_win_id)
@@ -29,8 +30,8 @@ local function on_command_success(command, return_code)
 end
 
 local function on_command_failed(command, return_code)
-    local text = command.name .. ' FAILED(' .. return_code .. ')'
-    notify.error('NOK', text)
+    local text = 'NeoDo: ' .. command.name .. ' FAILED'
+    notify.error('RC: ' .. return_code, text)
     if global_settings.qf_open_on_error and command.errorformat then
         vim.api.nvim_command("copen")
     end
@@ -69,7 +70,13 @@ end
 local function get_cmd_string(command)
     local cmd = nil
     if (type(command.cmd) == 'function') then
-        cmd = command.cmd(command.params)
+        local params = {}
+        if command.params and type(command.params) == "function" then
+            params = command.params()
+        else
+            params = command.params
+        end
+        cmd = command.cmd(params)
     else
         cmd = vim.fn.expandcmd(command.cmd)
     end
@@ -77,8 +84,14 @@ local function get_cmd_string(command)
 end
 
 local function start_function_command(command)
-    command.cmd()
-    notify.info("", command.name .. ' EXECUTED')
+    local params = {}
+    if command.params and type(command.params) == "function" then
+        params = command.params()
+    else
+        params = command.params
+    end
+    command.cmd(params)
+    notify.info("", 'NeoDo: ' .. command.name)
 end
 
 local function start_background_command(command)
@@ -93,12 +106,19 @@ local function start_background_command(command)
 
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
-    local text = command.name .. ' STARTED'
+    local text = 'NeoDo: ' .. command.name
     notify.info(cmd, text)
     if global_settings.qf_open_on_start then vim.api.nvim_command("copen") end
 end
 
 local function start_terminal_command(command)
+
+    -- run the command
+    local cmd = get_cmd_string(command)
+    if cmd == nil then
+        log("Cannot create command")
+        return
+    end
 
     -- check if a buffer with the latest id is already open, if it is then
     -- delete it and continue
@@ -128,8 +148,6 @@ local function start_terminal_command(command)
     end
     vim.api.nvim_buf_attach(latest_buf_id, false, {on_detach = onDetach})
 
-    -- run the command
-    local cmd = get_cmd_string(command)
     local job_id = vim.fn.termopen(cmd, {
         on_stderr = on_event,
         on_stdout = on_event,
@@ -143,7 +161,7 @@ local function start_terminal_command(command)
     system_jobs[job_id] = command
     system_jobs_lines[job_id] = {}
 
-    local text = command.name .. ' STARTED IN TERMINAL'
+    local text = 'NeoDo: ' .. command.name
     notify.info(cmd, text)
 end
 

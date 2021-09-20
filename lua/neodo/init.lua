@@ -83,7 +83,6 @@ local function on_project_root(p)
     end
 
     if global_settings.change_root then
-        print(vim.inspect(p.dir))
         vim.api.nvim_set_current_dir(p.dir)
         if global_settings.change_root_notify then
             notify.info(p.dir, "Working directory changed")
@@ -123,6 +122,22 @@ function M.run(command_key)
         log('Unknown command \'' .. command_key .. '\'')
     else
         neodo.command(command)
+    end
+end
+
+function M.get_command_params(command_key)
+    if vim.b.project_hash == nil then
+        log('Buffer not attached to any project')
+        return
+    end
+
+    local project = projects[vim.b.project_hash]
+    local command = project.settings.commands[command_key]
+    if command == nil then
+        log('Unknown command \'' .. command_key .. '\'')
+        return nil
+    else
+        return command.params
     end
 end
 
