@@ -18,7 +18,6 @@ local function directory_find_backwards(path, pattern)
         local function iter() return vim.loop.fs_scandir_next(data) end
         for name, _ in iter do
             if name == pattern then
-                print("found pattern: " .. name .. " in ")
                 p = path
             end
         end
@@ -30,8 +29,9 @@ local function directory_find_backwards(path, pattern)
     return p
 end
 
-function M.find_project_root_and_type(path, callback)
+function M.find_project(path, callback)
     vim.schedule(function()
+        -- look for project types
         for type, value in pairs(global_settings.project_type) do
             for _, pattern in ipairs(value.patterns) do
                 local dir = directory_find_backwards(path, pattern)
@@ -41,6 +41,18 @@ function M.find_project_root_and_type(path, callback)
                 end
             end
         end
+
+        -- look for generic project root
+        for _, pattern in ipairs(global_settings.root_patterns) do
+            local dir = directory_find_backwards(path, pattern)
+            if dir and dir ~= '' then
+                callback({dir = dir, type = nil})
+                return
+            end
+        end
+
+        -- no project root or type found
+        callback({dir = nil, type = nil})
     end)
 end
 

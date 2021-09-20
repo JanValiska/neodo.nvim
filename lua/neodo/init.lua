@@ -28,97 +28,105 @@ local function change_root(dir)
     end
 end
 
--- called when project root is detected
-local function on_project_root(p)
-    -- p is nil when no root is detected
-    if p == nil then return end
+local function load_project(dir, type)
+    local hash = configuration.project_hash(dir)
 
-    local hash = configuration.project_hash(p.dir)
-    vim.b.project_hash = hash
+    -- return already loaded project
+    if projects[hash] ~= nil then return projects[hash] end
 
-    -- ensure project dir is created
+    local global_project_settings = global_settings.project_type[type]
 
-    local global_project_settings = global_settings.project_type[p.type]
-
-    if projects[hash] == nil then
-        if configuration.has_project_in_the_source_config(p.dir) then
-            log('Using .neodo config')
-            projects[hash] = {
-                path = p.dir,
-                type = p.type,
-                settings_type = 2,
-                settings = load_and_get_merged_config(
-                    configuration.get_project_in_the_source_config(p.dir),
-                    global_project_settings)
-            }
-        elseif configuration.has_project_out_of_source_config(p.dir) then
-            log('Using out of source neodo config')
-            projects[hash] = {
-                path = p.dir,
-                type = p.type,
-                settings_type = 1,
-                settings = load_and_get_merged_config(
-                    configuration.get_project_out_of_source_config(p.dir),
-                    global_project_settings)
-            }
-        else
-            log('Using global config')
-            projects[hash] = {
-                path = p.dir,
-                type = p.type,
-                settings_type = 0,
-                settings = global_project_settings
-            }
-        end
+    -- load project
+    if configuration.has_project_in_the_source_config(dir) then
+        log('Using .neodo config')
+        projects[hash] = {
+            path = dir,
+            type = type,
+            settings_type = 2,
+            settings = load_and_get_merged_config(
+                configuration.get_project_in_the_source_config(dir), global_project_settings)
+        }
+    elseif configuration.has_project_out_of_source_config(dir) then
+        log('Using out of source neodo config')
+        projects[hash] = {
+            path = dir,
+            type = type,
+            settings_type = 1,
+            settings = load_and_get_merged_config(
+                configuration.get_project_out_of_source_config(dir), global_project_settings)
+        }
+    else
+        log('Using global config')
+        projects[hash] = {
+            path = dir,
+            type = type,
+            hash = hash,
+            settings_type = 0,
+            settings = global_project_settings
+        }
     end
 
+    return projects[hash]
+end
+
+local function call_buffer_on_attach(project)
     local call_global_on_attach = true
 
     -- call also global on attach function if shouldn't be skipped
-    if projects[hash].settings.skip_global_on_attach and
-        projects[hash].settings.skip_global_on_attach == true then
+    if project.settings.skip_global_on_attach then
         call_global_on_attach = false
     end
 
     if call_global_on_attach then
-        local on_attach = global_project_settings.on_attach
+        local on_attach = global_settings.on_attach
         if on_attach and type(on_attach) == 'function' then on_attach() end
     end
 
     -- call project specific on attach
-    local on_attach = projects[hash].settings.on_attach
-    if on_attach ~= global_project_settings.on_attach then
+    local on_attach = project.settings.on_attach
+    if on_attach ~= global_settings.on_attach then
         if on_attach and type(on_attach) == 'function' then on_attach() end
     end
+end
 
+-- called when project root is detected
+local function on_project_dir_detected(p)
+    -- p.dir is nil when no root is detected
+    if p.dir == nil then return end
+
+    -- change root
     change_root(p.dir)
+
+    -- p.type is nil when no project type is detected
+    if p.type == nil then return end
+
+    -- load project if also project type was detected
+    local project = load_project(p.dir, p.type)
+
+    -- mark current buffer that it belongs to project
+    vim.b.project_hash = project.hash
+
+    -- call buffer on attach handlers
+    call_buffer_on_attach(project)
 end
 
 local filetype_ignore = {'qf'}
 
 local buftype_permit = {'', 'nowrite'}
 
-local function already_loaded()
-    return vim.b.project_hash ~= nil
-end
-
-local function change_root_if_already_loaded()
-    if already_loaded() then
-        change_root(projects[vim.b.project_hash].path)
-        return true
-    end
-    return false
-end
+local function already_loaded() return vim.b.project_hash ~= nil end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
-    change_root_if_already_loaded()
+    if already_loaded() then change_root(projects[vim.b.project_hash].path) end
 end
 
 function M.buffer_new_or_read()
     local ft = vim.bo.filetype
 
-    if change_root_if_already_loaded() then
+    -- if buffer is assigned to project already, just change root if needed
+    if already_loaded() then
+        change_root(projects[vim.b.project_hash].path)
         return
     end
 
@@ -130,7 +138,8 @@ function M.buffer_new_or_read()
 
     local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
     if basepath == nil then return end
-    root.find_project_root_and_type(basepath, on_project_root)
+
+    root.find_project(basepath, on_project_dir_detected)
 end
 
 -- called by user code to execute command with given key for current buffer
@@ -241,7 +250,6 @@ end
 local function register_built_in_project_types()
     require'neodo.projects.mongoose'.register()
     require'neodo.projects.cmake'.register()
-    require'neodo.projects.vim'.register()
 end
 
 local function register_telescope_extension()

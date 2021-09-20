@@ -7,7 +7,8 @@ local M = {
     qf_close_on_success = true,
     terminal_close_on_success = true,
     change_root = true,
-    change_root_notify = false
+    change_root_notify = false,
+    root_patterns = { ".git", "_darcs", ".hg", ".bzr", ".svn", "Makefile", "package.json" }
 }
 
 return M
