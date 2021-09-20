@@ -94,9 +94,29 @@ local filetype_ignore = {'qf'}
 
 local buftype_permit = {'', 'nowrite'}
 
+local function already_loaded()
+    return vim.b.project_hash ~= nil
+end
+
+local function change_root_if_already_loaded()
+    if already_loaded() and global_settings.change_root then
+        vim.api.nvim_set_current_dir(projects[vim.b.project_hash].path)
+        return true
+    end
+    return false
+end
+
 -- called when the buffer is entered first time
 function M.buffer_entered()
+    change_root_if_already_loaded()
+end
+
+function M.buffer_new_or_read()
     local ft = vim.bo.filetype
+
+    if change_root_if_already_loaded() then
+        return
+    end
 
     if ft == '' then return end
 
@@ -234,7 +254,13 @@ function M.setup(config)
     end
     vim.api.nvim_exec([[
      augroup Mongoose
-       autocmd BufNewFile,BufRead * lua require'neodo'.buffer_entered()
+       autocmd BufNewFile,BufRead * lua require'neodo'.buffer_new_or_read()
+     augroup end
+    ]], false)
+
+    vim.api.nvim_exec([[
+     augroup Mongoose
+       autocmd BufEnter * lua require'neodo'.buffer_entered()
      augroup end
     ]], false)
 
