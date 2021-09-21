@@ -1,12 +1,13 @@
 local M = {}
 
--- list of currently running jobs
-local system_jobs = {}
-
 local global_settings = require 'neodo.settings'
 local utils = require 'neodo.utils'
 local notify = require 'neodo.notify'
 local log = require 'neodo.log'
+
+
+-- list of currently running jobs
+local system_jobs = {}
 
 -- key/value store for lines produced by currently running jobs
 local system_jobs_lines = {}

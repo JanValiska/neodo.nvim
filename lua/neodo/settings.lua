@@ -8,6 +8,7 @@ local M = {
     terminal_close_on_success = true,
     change_root = true,
     change_root_notify = false,
+    generic_project_settings = {},
     root_patterns = { ".git", "_darcs", ".hg", ".bzr", ".svn", "Makefile", "package.json" }
 }
 

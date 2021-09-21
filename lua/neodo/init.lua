@@ -12,11 +12,16 @@ local notify = require 'neodo.notify'
 -- per project configurations
 local projects = require 'neodo.projects'
 
-local function load_and_get_merged_config(project_specific_config_file,
-                                          global_project_config)
-    local config = assert(loadfile(project_specific_config_file))()
-    if config == nil then return global_project_config end
-    return vim.tbl_deep_extend('force', global_project_config, config)
+local function load_settings(file)
+    local settings = assert(loadfile(file))()
+    return settings
+end
+
+local function load_and_get_merged_config(project_config_file,
+                                          global_project_settings)
+    local settings = load_settings(project_config_file)
+    if settings == nil then return global_project_settings end
+    return vim.tbl_deep_extend('force', global_project_settings, settings)
 end
 
 local function change_root(dir)
@@ -34,39 +39,49 @@ local function load_project(dir, type)
     -- return already loaded project
     if projects[hash] ~= nil then return projects[hash] end
 
-    local global_project_settings = global_settings.project_type[type]
+    local settings = {}
+    local settings_type = 0
+    local config_file = nil
 
     -- load project
     if configuration.has_project_in_the_source_config(dir) then
-        notify.info(dir, "NeoDo: " .. type .. " project loaded(.neodo)")
-        projects[hash] = {
-            path = dir,
-            type = type,
-            hash = hash,
-            settings_type = 2,
-            settings = load_and_get_merged_config(
-                configuration.get_project_in_the_source_config(dir), global_project_settings)
-        }
+        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                        " project settings(.neodo)")
+        settings_type = 2
+        config_file = configuration.get_project_in_the_source_config(dir)
     elseif configuration.has_project_out_of_source_config(dir) then
-        notify.info(dir, "NeoDo: " .. type .. " project loaded(out of source)")
-        projects[hash] = {
-            path = dir,
-            type = type,
-            hash = hash,
-            settings_type = 1,
-            settings = load_and_get_merged_config(
-                configuration.get_project_out_of_source_config(dir), global_project_settings)
-        }
+        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                        " project settings(out of source)")
+        settings_type = 1
+        config_file = configuration.get_project_out_of_source_config(dir)
     else
-        notify.info(dir, "NeoDo: " .. type .. " project loaded(global)")
-        projects[hash] = {
-            path = dir,
-            type = type,
-            hash = hash,
-            settings_type = 0,
-            settings = global_project_settings
-        }
+        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                        " project settings(global)")
     end
+
+    if config_file ~= nil then
+        if type == nil then
+            settings = load_settings(config_file) or {}
+        else
+            local global_project_settings = global_settings.project_type[type]
+            settings = load_and_get_merged_config(config_file,
+                                                  global_project_settings)
+        end
+    else
+        if type ~= nil then
+            settings = global_settings.project_type[type]
+        else
+            settings = global_settings.generic_project_settings
+        end
+    end
+
+    projects[hash] = {
+        path = dir,
+        type = type,
+        hash = hash,
+        settings_type = settings_type,
+        settings = settings
+    }
 
     return projects[hash]
 end
@@ -99,10 +114,6 @@ local function on_project_dir_detected(p)
     -- change root
     change_root(p.dir)
 
-    -- p.type is nil when no project type is detected
-    if p.type == nil then return end
-
-    -- load project if also project type was detected
     local project = load_project(p.dir, p.type)
 
     -- mark current buffer that it belongs to project
@@ -266,6 +277,7 @@ function M.setup(config)
     if config then
         global_settings = vim.tbl_deep_extend('force', global_settings, config)
     end
+
     vim.api.nvim_exec([[
      augroup Mongoose
        autocmd BufNewFile,BufRead * lua require'neodo'.buffer_new_or_read()
