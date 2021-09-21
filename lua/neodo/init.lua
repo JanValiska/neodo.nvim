@@ -40,19 +40,16 @@ local function load_project(dir, type)
     if projects[hash] ~= nil then return projects[hash] end
 
     local settings = {}
-    local settings_type = 0
     local config_file = nil
 
     -- load project
     if configuration.has_project_in_the_source_config(dir) then
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
                         " project settings(.neodo)")
-        settings_type = 2
         config_file = configuration.get_project_in_the_source_config(dir)
     elseif configuration.has_project_out_of_source_config(dir) then
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
                         " project settings(out of source)")
-        settings_type = 1
         config_file = configuration.get_project_out_of_source_config(dir)
     else
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
@@ -79,7 +76,7 @@ local function load_project(dir, type)
         path = dir,
         type = type,
         hash = hash,
-        settings_type = settings_type,
+        config_file = config_file,
         settings = settings
     }
 
@@ -221,14 +218,8 @@ function M.edit_project_settings()
     local project_hash = vim.b.project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
-        if project.settings_type == 2 then
-            vim.api.nvim_exec(":e " ..
-                                  configuration.get_project_in_the_source_config(
-                                      project.path), false)
-        elseif project.settings_type == 1 then
-            vim.api.nvim_exec(":e " ..
-                                  configuration.get_project_out_of_source_config(
-                                      project.path), false)
+        if project.config_file then
+            vim.api.nvim_exec(":e " .. project.config_file, false)
         else
             local ans = vim.fn.input(
                             "Create project config out of source(o), in the source(i), cancel(c): ")
@@ -237,7 +228,7 @@ function M.edit_project_settings()
                                                                function(path)
                     if path ~= nil then
                         vim.api.nvim_exec(":e " .. path, false)
-                        project.settings_type = 1
+                        project.config_file = path
                     end
                 end)
             elseif ans == 'i' then
@@ -245,7 +236,7 @@ function M.edit_project_settings()
                                                                function(path)
                     if path ~= nil then
                         vim.api.nvim_exec(":e " .. path, false)
-                        project.settings_type = 2
+                        project.config_file = path
                     end
                 end)
             else
