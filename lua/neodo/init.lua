@@ -33,74 +33,85 @@ local function change_root(dir)
     end
 end
 
+local function call_buffer_on_attach(project)
+    local global_on_attach = project.buffer_on_attach
+    if global_on_attach and type(global_on_attach) == 'function' then
+        global_on_attach()
+    end
+
+    -- call project specific on attach
+    local user_on_attach = project.user_buffer_on_attach
+    if user_on_attach and type(user_on_attach) == 'function' then
+        user_on_attach()
+    end
+end
+
+local function call_on_attach(project)
+    local global_on_attach = project.on_attach
+    if global_on_attach and type(global_on_attach) == 'function' then
+        global_on_attach(project)
+    end
+
+    -- call project specific on attach
+    local user_on_attach = project.user_on_attach
+    if user_on_attach and type(user_on_attach) == 'function' then
+        user_on_attach(project)
+    end
+end
+
 local function load_project(dir, type)
     local hash = configuration.project_hash(dir)
 
     -- return already loaded project
     if projects[hash] ~= nil then return projects[hash] end
 
-    local settings = {}
     local config_file = nil
+    local data_path = nil
 
     -- load project
     if configuration.has_project_in_the_source_config(dir) then
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
                         " project settings(.neodo)")
         config_file = configuration.get_project_in_the_source_config(dir)
+        data_path = configuration.get_project_in_source_data_path(dir)
     elseif configuration.has_project_out_of_source_config(dir) then
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
                         " project settings(out of source)")
         config_file = configuration.get_project_out_of_source_config(dir)
+        data_path = configuration.get_project_data_path(dir)
     else
         notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
                         " project settings(global)")
     end
 
+    local project = {}
     if config_file ~= nil then
         if type == nil then
-            settings = load_settings(config_file) or {}
+            project = load_settings(config_file) or {}
         else
             local global_project_settings = global_settings.project_type[type]
-            settings = load_and_get_merged_config(config_file,
+            project = load_and_get_merged_config(config_file,
                                                   global_project_settings)
         end
     else
         if type ~= nil then
-            settings = global_settings.project_type[type]
+            project = global_settings.project_type[type]
         else
-            settings = global_settings.generic_project_settings
+            project = global_settings.generic_project_settings
         end
     end
 
-    projects[hash] = {
-        path = dir,
-        type = type,
-        hash = hash,
-        config_file = config_file,
-        settings = settings
-    }
+    project.path = dir
+    project.type = type
+    project.hash = hash
+    project.data_path = data_path
+    project.config_file = config_file
 
-    return projects[hash]
-end
+    projects[hash] = project
 
-local function call_buffer_on_attach(project)
-    local call_global_on_attach = true
+    call_on_attach(project)
 
-    -- call also global on attach function if shouldn't be skipped
-    if project.settings.skip_global_on_attach then
-        call_global_on_attach = false
-    end
-
-    if call_global_on_attach then
-        local on_attach = global_settings.on_attach
-        if on_attach and type(on_attach) == 'function' then on_attach() end
-    end
-
-    -- call project specific on attach
-    local on_attach = project.settings.on_attach
-    if on_attach ~= global_settings.on_attach then
-        if on_attach and type(on_attach) == 'function' then on_attach() end
-    end
+    return project
 end
 
 -- called when project root is detected
@@ -125,6 +136,13 @@ local filetype_ignore = {'qf'}
 local buftype_permit = {'', 'nowrite'}
 
 local function already_loaded() return vim.b.project_hash ~= nil end
+
+local function command_enabled(command, project)
+    if command.enabled and type(command.enabled) == 'function' then
+        return command.enabled(command.params, project)
+    end
+    return true
+end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
@@ -152,6 +170,8 @@ function M.buffer_new_or_read()
     root.find_project(basepath, on_project_dir_detected)
 end
 
+function M.get_project(hash) return projects[hash] end
+
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
     if vim.b.project_hash == nil then
@@ -160,11 +180,13 @@ function M.run(command_key)
     end
 
     local project = projects[vim.b.project_hash]
-    local command = project.settings.commands[command_key]
+    local command = project.commands[command_key]
     if command == nil then
         log('Unknown command \'' .. command_key .. '\'')
     else
-        neodo.command(command)
+        if command_enabled(command, project) then
+            neodo.command(command, project)
+        end
     end
 end
 
@@ -175,7 +197,7 @@ function M.get_command_params(command_key)
     end
 
     local project = projects[vim.b.project_hash]
-    local command = project.settings.commands[command_key]
+    local command = project.commands[command_key]
     if command == nil then
         log('Unknown command \'' .. command_key .. '\'')
         return nil
@@ -205,11 +227,19 @@ function M.handle_vim_command(command_key)
     end
 end
 
+function M.get_enabled_commands_keys(project)
+    local keys = {}
+    for key, command in pairs(project.commands) do
+        if command_enabled(command, project) then table.insert(keys, key) end
+    end
+    return keys
+end
+
 function M.completions_helper()
     local project_hash = vim.b.project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
-        return vim.tbl_keys(project.settings.commands)
+        return vim.tbl_keys(M.get_enabled_commands_keys(project))
     end
     return {}
 end
@@ -226,7 +256,7 @@ function M.edit_project_settings()
             if ans == 'o' then
                 configuration.create_out_of_source_config_file(project.path,
                                                                function(path)
-                    if path ~= nil then
+                    if path then
                         vim.api.nvim_exec(":e " .. path, false)
                         project.config_file = path
                     end
@@ -234,7 +264,7 @@ function M.edit_project_settings()
             elseif ans == 'i' then
                 configuration.create_in_the_source_config_file(project.path,
                                                                function(path)
-                    if path ~= nil then
+                    if path then
                         vim.api.nvim_exec(":e " .. path, false)
                         project.config_file = path
                     end
@@ -252,8 +282,8 @@ function M.edit_project_settings()
 end
 
 local function register_built_in_project_types()
-    require'neodo.projects.mongoose'.register()
-    require'neodo.projects.cmake'.register()
+    require'neodo.project_type.mongoose'.register()
+    require'neodo.project_type.cmake'.register()
 end
 
 local function register_telescope_extension()

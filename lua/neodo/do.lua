@@ -4,7 +4,7 @@ local global_settings = require 'neodo.settings'
 local utils = require 'neodo.utils'
 local notify = require 'neodo.notify'
 local log = require 'neodo.log'
-
+local projects = require'neodo.projects'
 
 -- list of currently running jobs
 local system_jobs = {}
@@ -16,9 +16,9 @@ local latest_buf_id = nil
 
 local latest_win_id = nil
 
-local function on_command_success(command, return_code)
-    local text = command.name .. ' SUCCESS'
-    notify.info('RC: ' .. return_code, text)
+local function on_command_success(command, project)
+    local title = 'NeoDo: ' .. command.name
+    notify.info('SUCCESS', title)
     if not command.run_as_background_job and
         global_settings.terminal_close_on_success then
         utils.close_win(latest_win_id)
@@ -27,14 +27,26 @@ local function on_command_success(command, return_code)
         vim.api.nvim_command("cclose")
     end
 
-    if command.on_success then command.on_success() end
+    if command.on_success then command.on_success(project) end
 end
 
 local function on_command_failed(command, return_code)
-    local text = 'NeoDo: ' .. command.name .. ' FAILED'
-    notify.error('RC: ' .. return_code, text)
+    local title = 'NeoDo: ' .. command.name
+    notify.error('FAILED with: ' .. return_code, title)
     if global_settings.qf_open_on_error and command.errorformat then
         vim.api.nvim_command("copen")
+    end
+end
+
+local function on_command_interrupted(command)
+    local text = 'NeoDo: ' .. command.name
+    notify.warning("Interrupted (SIGINT)", text)
+    if not command.run_as_background_job and
+        global_settings.terminal_close_on_success then
+        utils.close_win(latest_win_id)
+    end
+    if global_settings.qf_close_on_success then
+        vim.api.nvim_command("cclose")
     end
 end
 
@@ -44,7 +56,7 @@ local function on_event(job_id, data, event)
     end
 
     if event == "exit" then
-        local command = system_jobs[job_id]
+        local command = system_jobs[job_id].command
         if command.errorformat then
             vim.fn.setqflist({}, ' ', {
                 title = command.cmd,
@@ -55,12 +67,16 @@ local function on_event(job_id, data, event)
         end
 
         if data == 0 then
-            on_command_success(command, data)
+            on_command_success(command, projects[system_jobs[job_id].project_hash])
         else
-            on_command_failed(command, data)
-        end
-        if global_settings.qf_open_on_stop and command.errorformat then
-            vim.api.nvim_command("copen")
+            if data == 130 then
+                on_command_interrupted(command)
+            else
+                on_command_failed(command, data)
+            end
+            if global_settings.qf_open_on_stop and command.errorformat then
+                vim.api.nvim_command("copen")
+            end
         end
 
         system_jobs_lines[job_id] = nil
@@ -68,7 +84,7 @@ local function on_event(job_id, data, event)
     end
 end
 
-local function get_cmd_string(command)
+local function get_cmd_string(command, project)
     local cmd = nil
     if (type(command.cmd) == 'function') then
         local params = {}
@@ -77,26 +93,45 @@ local function get_cmd_string(command)
         else
             params = command.params
         end
-        cmd = command.cmd(params)
+        local result = command.cmd(params, project)
+        if result.type == 'success' then cmd = result.text end
+        if result.type == 'error' then
+            notify.error(result.text, 'Neodo: ' .. command.name)
+            return nil
+        end
     else
         cmd = vim.fn.expandcmd(command.cmd)
     end
     return cmd
 end
 
-local function start_function_command(command)
+local function should_notify(command)
+    if command.notify ~= nil then return command.notify end
+    return true
+end
+
+local function start_function_command(command, project)
     local params = {}
     if command.params and type(command.params) == "function" then
         params = command.params()
     else
         params = command.params
     end
-    command.cmd(params)
-    notify.info("", 'NeoDo: ' .. command.name)
+    local title = 'NeoDo: ' .. command.name
+    if should_notify(command) then notify.info("Invoking", title) end
+    local result = command.cmd(params, project)
+    if result.type == 'success' then
+        if should_notify(command) then notify.info('SUCCESS', title) end
+        if command.on_success and type(command.on_success) == 'function' then
+            command.on_success(project)
+        end
+        return
+    end
+    if result.type == "error" then notify.error(result.text, title) end
 end
 
-local function start_background_command(command)
-    local cmd = get_cmd_string(command)
+local function start_background_command(command, project)
+    local cmd = get_cmd_string(command, project)
     local job_id = vim.fn.jobstart(cmd, {
         on_stderr = on_event,
         on_stdout = on_event,
@@ -105,17 +140,19 @@ local function start_background_command(command)
         stderr_buffered = false
     })
 
-    system_jobs[job_id] = command
+    system_jobs[job_id] = {command = command, project_hash = project.hash}
     system_jobs_lines[job_id] = {}
-    local text = 'NeoDo: ' .. command.name
-    notify.info(cmd, text)
+    if should_notify(command) then
+        local text = 'NeoDo: ' .. command.name
+        notify.info(cmd, text)
+    end
     if global_settings.qf_open_on_start then vim.api.nvim_command("copen") end
 end
 
-local function start_terminal_command(command)
+local function start_terminal_command(command, project)
 
     -- run the command
-    local cmd = get_cmd_string(command)
+    local cmd = get_cmd_string(command, project)
     if cmd == nil then
         log("Cannot create command")
         return
@@ -159,21 +196,23 @@ local function start_terminal_command(command)
 
     -- vim.cmd('keepalt file ' .. 'NeoDo: ' .. cmd)
 
-    system_jobs[job_id] = command
+    system_jobs[job_id] = {command = command, project_hash = project.hash}
     system_jobs_lines[job_id] = {}
 
-    local text = 'NeoDo: ' .. command.name
-    notify.info(cmd, text)
+    if should_notify(command) then
+        local text = 'NeoDo: ' .. command.name
+        notify.info(cmd, text)
+    end
 end
 
-function M.command(command)
+function M.command(command, project)
     if global_settings.qf_close_on_start then vim.api.nvim_command("cclose") end
     if command.type == 'function' then
-        start_function_command(command)
+        start_function_command(command, project)
     elseif command.type == 'background' then
-        start_background_command(command)
+        start_background_command(command, project)
     else
-        start_terminal_command(command)
+        start_terminal_command(command, project)
     end
 end
 

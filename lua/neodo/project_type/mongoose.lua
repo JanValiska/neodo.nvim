@@ -4,17 +4,14 @@ local utils = require 'neodo.utils'
 local settings = require 'neodo.settings'
 local log = require 'neodo.log'
 
-function M.build_cmd(params)
+function M.build_cmd(params, _)
     local cmd = {'mos build'}
 
-    if not params then 
-        return nil
-    end
+    if not params then return {type = 'error', text = 'Params not found'} end
 
     -- Check platform param
     if params.platform == nil then
-        log("Platform not specified")
-        return nil
+        return {type = 'error', text = 'Platform not specified'}
     else
         table.insert(cmd, "--platform " .. params.platform)
     end
@@ -23,7 +20,7 @@ function M.build_cmd(params)
 
     if params.port then table.insert(cmd, "--port " .. params.port) end
 
-    return utils.tbl_join(cmd, ' ')
+    return {type = 'success', text = utils.tbl_join(cmd, ' ')}
 end
 
 M.build_params = {platform = "esp32", local_build = true}
@@ -31,14 +28,14 @@ M.build_params = {platform = "esp32", local_build = true}
 M.build_errorformat =
     [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]]
 
-function M.flash_cmd(params)
+function M.flash_cmd(params, _)
     local cmd = {'mos flash'}
 
     if params ~= nil then
         if params.port then table.insert(cmd, "--port " .. params.port) end
     end
 
-    return utils.tbl_join(cmd, ' ')
+    return {type = 'success', text = utils.tbl_join(cmd, ' ')}
 end
 
 M.register = function()
@@ -54,7 +51,10 @@ M.register = function()
             flash = {type = 'terminal', name = "Flash", cmd = M.flash_cmd}
         },
         patterns = {'mos.yml'},
-        on_attach = nil
+        on_attach = nil,
+        on_buffer_attach = nil,
+        buffer_on_attach = nil,
+        user_buffer_on_attach = nil,
     }
 end
 

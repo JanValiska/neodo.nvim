@@ -21,7 +21,7 @@ end
 
 ---Main entrypoint for Telescope.
 ---@param opts table
-local function neodo(opts)
+local function neodo_entry_point(opts)
     opts = opts or {}
 
     if vim.b.project_hash == nil then
@@ -30,8 +30,7 @@ local function neodo(opts)
     end
 
     local project = projects[vim.b.project_hash]
-    local commands = project.settings.commands
-    local results = vim.tbl_keys(commands)
+    local results = neodo.get_enabled_commands_keys(project)
 
     pickers.new(opts, {
         prompt_title = "Select NeoDo command",
@@ -45,4 +44,4 @@ local function neodo(opts)
     }):find()
 end
 
-return telescope.register_extension({exports = {neodo = neodo}})
+return telescope.register_extension({exports = {neodo = neodo_entry_point}})

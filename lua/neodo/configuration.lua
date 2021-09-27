@@ -1,11 +1,11 @@
 local M = {}
 local uv = vim.loop
 
-local out_of_source_config_file_name = 'neodo.lua'
-local in_the_source_config_file_name = '.neodo'
+local config_file_name = 'config.lua'
 
 local dp = vim.fn.stdpath("data")
 local base_data_path = dp .. '/neodo'
+local file = require 'neodo.file'
 
 function M.project_hash(project_path) return vim.fn.sha256(project_path) end
 
@@ -33,6 +33,18 @@ local function ensure_project_data_path(project_path, callback)
     callback()
 end
 
+function M.get_project_in_source_data_path(project_path)
+    return project_path .. '/' .. '.neodo'
+end
+
+local function ensure_in_source_project_data_path(project_path, callback)
+    local project_data_path = M.get_project_in_source_data_path(project_path)
+    if dir_exists(project_data_path) == false then
+        uv.fs_mkdir(project_data_path, 448)
+    end
+    callback()
+end
+
 function M.get_data_path() return base_data_path end
 
 function M.get_project_data_path(project_path)
@@ -40,12 +52,11 @@ function M.get_project_data_path(project_path)
 end
 
 function M.get_project_out_of_source_config(project_path)
-    return M.get_project_data_path(project_path) .. '/' ..
-               out_of_source_config_file_name
+    return M.get_project_data_path(project_path) .. '/' .. config_file_name
 end
 
 function M.get_project_in_the_source_config(project_path)
-    return project_path .. '/' .. in_the_source_config_file_name
+    return project_path .. '/.neodo/' .. config_file_name
 end
 
 function M.has_project_data_path(project_path)
@@ -69,27 +80,7 @@ function M.has_project_in_the_source_config(project_path)
 end
 
 local function write_template(path, template, callback)
-    uv.fs_open(path, "w", 444, function(err, fd)
-        if err then
-            print('Cannot open file: ' .. path)
-        else
-            uv.fs_write(fd, template, 0, function(err1, _)
-                if err1 then
-                    print('Cannot write template: ' .. path)
-                else
-                    uv.fs_close(fd, function(err2)
-                        if err2 then
-                            print('Cannot close file: ' .. err2)
-                        else
-                            vim.schedule(function()
-                                callback(path)
-                            end)
-                        end
-                    end)
-                end
-            end)
-        end
-    end)
+    file.write(path, 444, template, callback)
 end
 
 local out_of_source_template = [[
@@ -110,13 +101,27 @@ return M
 function M.create_out_of_source_config_file(project_path, callback)
     ensure_project_data_path(project_path, function()
         local config_file = M.get_project_out_of_source_config(project_path)
-        write_template(config_file, out_of_source_template, callback)
+        write_template(config_file, out_of_source_template, function(err)
+            if err then
+                print("Cannot create config file: " .. config_file)
+            else
+                callback(config_file)
+            end
+        end)
     end)
 end
 
 function M.create_in_the_source_config_file(project_path, callback)
-    local config_file = M.get_project_in_the_source_config(project_path)
-    write_template(config_file, in_the_source_template, callback)
+    ensure_in_source_project_data_path(project_path, function()
+        local config_file = M.get_project_in_the_source_config(project_path)
+        write_template(config_file, in_the_source_template, function(err)
+            if err then
+                print("Cannot create config file: " .. config_file)
+            else
+                callback(config_file)
+            end
+        end)
+    end)
 end
 
 return M
