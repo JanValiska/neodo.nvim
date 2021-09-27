@@ -24,12 +24,12 @@ end
 local function neodo_entry_point(opts)
     opts = opts or {}
 
-    if vim.b.project_hash == nil then
+    if vim.b.neodo_project_hash == nil then
         log('Buffer not attached to any project')
         return
     end
 
-    local project = projects[vim.b.project_hash]
+    local project = projects[vim.b.neodo_project_hash]
     local results = neodo.get_enabled_commands_keys(project)
 
     pickers.new(opts, {

@@ -125,7 +125,7 @@ local function on_project_dir_detected(p)
     local project = load_project(p.dir, p.type)
 
     -- mark current buffer that it belongs to project
-    vim.b.project_hash = project.hash
+    vim.b.neodo_project_hash = project.hash
 
     -- call buffer on attach handlers
     call_buffer_on_attach(project)
@@ -135,7 +135,7 @@ local filetype_ignore = {'qf'}
 
 local buftype_permit = {'', 'nowrite'}
 
-local function already_loaded() return vim.b.project_hash ~= nil end
+local function already_loaded() return vim.b.neodo_project_hash ~= nil end
 
 local function command_enabled(command, project)
     if command.enabled and type(command.enabled) == 'function' then
@@ -146,7 +146,7 @@ end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
-    if already_loaded() then change_root(projects[vim.b.project_hash].path) end
+    if already_loaded() then change_root(projects[vim.b.neodo_project_hash].path) end
 end
 
 function M.buffer_new_or_read()
@@ -154,7 +154,7 @@ function M.buffer_new_or_read()
 
     -- if buffer is assigned to project already, just change root if needed
     if already_loaded() then
-        change_root(projects[vim.b.project_hash].path)
+        change_root(projects[vim.b.neodo_project_hash].path)
         return
     end
 
@@ -174,12 +174,12 @@ function M.get_project(hash) return projects[hash] end
 
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
-    if vim.b.project_hash == nil then
+    if vim.b.neodo_project_hash == nil then
         log('Buffer not attached to any project')
         return
     end
 
-    local project = projects[vim.b.project_hash]
+    local project = projects[vim.b.neodo_project_hash]
     local command = project.commands[command_key]
     if command == nil then
         log('Unknown command \'' .. command_key .. '\'')
@@ -191,12 +191,12 @@ function M.run(command_key)
 end
 
 function M.get_command_params(command_key)
-    if vim.b.project_hash == nil then
+    if vim.b.neodo_project_hash == nil then
         log('Buffer not attached to any project')
         return
     end
 
-    local project = projects[vim.b.project_hash]
+    local project = projects[vim.b.neodo_project_hash]
     local command = project.commands[command_key]
     if command == nil then
         log('Unknown command \'' .. command_key .. '\'')
@@ -207,7 +207,7 @@ function M.get_command_params(command_key)
 end
 
 function M.neodo()
-    if vim.b.project_hash == nil then
+    if vim.b.neodo_project_hash == nil then
         log('Buffer not attached to any project')
         return
     else
@@ -236,7 +236,7 @@ function M.get_enabled_commands_keys(project)
 end
 
 function M.completions_helper()
-    local project_hash = vim.b.project_hash
+    local project_hash = vim.b.neodo_project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
         return vim.tbl_keys(M.get_enabled_commands_keys(project))
@@ -245,7 +245,7 @@ function M.completions_helper()
 end
 
 function M.edit_project_settings()
-    local project_hash = vim.b.project_hash
+    local project_hash = vim.b.neodo_project_hash
     if project_hash ~= nil then
         local project = projects[project_hash]
         if project.config_file then
