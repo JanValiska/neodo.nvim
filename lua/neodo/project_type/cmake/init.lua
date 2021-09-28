@@ -59,7 +59,6 @@ end
 local function configure(_, project)
     local profile = project.config.profiles[project.config.selected_profile]
     local cmd = ''
-    print(vim.inspect(project.config))
     if project.config.has_conan then
         cmd = 'conan install -if ' .. profile.build_dir .. ' . && '
     end

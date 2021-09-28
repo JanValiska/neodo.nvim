@@ -7,10 +7,10 @@ local log = require 'neodo.log'
 local projects = require 'neodo.projects'
 
 -- list of currently running jobs
-local system_jobs = {}
+local job = {}
 
--- key/value store for lines produced by currently running jobs
-local system_jobs_lines = {}
+-- key/value store for output lines produced by currently running jobs terminal/background
+local job_output = {}
 
 local latest_buf_id = nil
 
@@ -52,23 +52,23 @@ end
 
 local function on_event(job_id, data, event)
     if event == "stdout" or event == "stderr" then
-        if data then vim.list_extend(system_jobs_lines[job_id], data) end
+        if data then vim.list_extend(job_output[job_id], data) end
     end
 
     if event == "exit" then
-        local command = system_jobs[job_id].command
+        local command = job[job_id].command
         if command.errorformat then
             vim.fn.setqflist({}, ' ', {
                 title = command.cmd,
                 efm = command.errorformat,
-                lines = system_jobs_lines[job_id]
+                lines = job_output[job_id]
             })
             vim.api.nvim_command("doautocmd QuickFixCmdPost")
         end
 
         if data == 0 then
             on_command_success(command,
-                               projects[system_jobs[job_id].project_hash])
+                               projects[job[job_id].project_hash])
         else
             if data == 130 then
                 on_command_interrupted(command)
@@ -80,8 +80,8 @@ local function on_event(job_id, data, event)
             end
         end
 
-        system_jobs_lines[job_id] = nil
-        system_jobs[job_id] = nil
+        job_output[job_id] = nil
+        job[job_id] = nil
     end
 end
 
@@ -142,8 +142,8 @@ local function start_background_command(command, project)
         stderr_buffered = false
     })
 
-    system_jobs[job_id] = {command = command, project_hash = project.hash}
-    system_jobs_lines[job_id] = {}
+    job[job_id] = {command = command, project_hash = project.hash}
+    job_output[job_id] = {}
     if should_notify(command) then
         local text = 'NeoDo: ' .. command.name
         notify.info(cmd, text)
@@ -198,8 +198,8 @@ local function start_terminal_command(command, project)
 
     -- vim.cmd('keepalt file ' .. 'NeoDo: ' .. cmd)
 
-    system_jobs[job_id] = {command = command, project_hash = project.hash}
-    system_jobs_lines[job_id] = {}
+    job[job_id] = {command = command, project_hash = project.hash}
+    job_output[job_id] = {}
 
     if should_notify(command) then
         local text = 'NeoDo: ' .. command.name
