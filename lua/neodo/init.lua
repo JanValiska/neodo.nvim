@@ -70,18 +70,25 @@ local function load_project(dir, type)
 
     -- load project
     if configuration.has_project_in_the_source_config(dir) then
-        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
-                        " project settings(.neodo)")
+        if global_settings.load_project_notify then
+            notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                            " project settings(.neodo)")
+        end
         config_file = configuration.get_project_in_the_source_config(dir)
         data_path = configuration.get_project_in_source_data_path(dir)
     elseif configuration.has_project_out_of_source_config(dir) then
-        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
-                        " project settings(out of source)")
+        if global_settings.load_project_notify then
+            notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                            " project settings(out of source)")
+        end
         config_file = configuration.get_project_out_of_source_config(dir)
         data_path = configuration.get_project_data_path(dir)
+
     else
-        notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
-                        " project settings(global)")
+        if global_settings.load_project_notify then
+            notify.info(dir, "NeoDo: Loading " .. (type or 'generic') ..
+                            " project settings(global)")
+        end
     end
 
     local project = {}
@@ -91,7 +98,7 @@ local function load_project(dir, type)
         else
             local global_project_settings = global_settings.project_type[type]
             project = load_and_get_merged_config(config_file,
-                                                  global_project_settings)
+                                                 global_project_settings)
         end
     else
         if type ~= nil then
@@ -146,7 +153,9 @@ end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
-    if already_loaded() then change_root(projects[vim.b.neodo_project_hash].path) end
+    if already_loaded() then
+        change_root(projects[vim.b.neodo_project_hash].path)
+    end
 end
 
 function M.buffer_new_or_read()

@@ -4,7 +4,7 @@ local global_settings = require 'neodo.settings'
 local utils = require 'neodo.utils'
 local notify = require 'neodo.notify'
 local log = require 'neodo.log'
-local projects = require'neodo.projects'
+local projects = require 'neodo.projects'
 
 -- list of currently running jobs
 local system_jobs = {}
@@ -67,7 +67,8 @@ local function on_event(job_id, data, event)
         end
 
         if data == 0 then
-            on_command_success(command, projects[system_jobs[job_id].project_hash])
+            on_command_success(command,
+                               projects[system_jobs[job_id].project_hash])
         else
             if data == 130 then
                 on_command_interrupted(command)
@@ -120,6 +121,7 @@ local function start_function_command(command, project)
     local title = 'NeoDo: ' .. command.name
     if should_notify(command) then notify.info("Invoking", title) end
     local result = command.cmd(params, project)
+    if result == nil then result = {type = 'success'} end
     if result.type == 'success' then
         if should_notify(command) then notify.info('SUCCESS', title) end
         if command.on_success and type(command.on_success) == 'function' then

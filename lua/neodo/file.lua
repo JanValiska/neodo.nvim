@@ -56,4 +56,30 @@ function M.write(path, mode, data, callback)
     end)
 end
 
+function M.file_exists(file)
+    local stat = uv.fs_stat(file)
+    if stat ~= nil and stat.type == "file" then return true end
+    return false
+end
+
+function M.dir_exists(dir)
+    local stat = uv.fs_stat(dir)
+    if stat ~= nil and stat.type == "directory" then return true end
+    return false
+end
+
+function M.delete(path)
+    if M.dir_exists(path) then
+        uv.fs_rmdir(path)
+    else
+        if M.file_exists(path) then uv.fs_unlink(path) end
+    end
+end
+
+function M.mkdir(path) uv.fs_mkdir(path, 448) end
+
+function M.symlink(what, where)
+    uv.fs_symlink(what, where)
+end
+
 return M
