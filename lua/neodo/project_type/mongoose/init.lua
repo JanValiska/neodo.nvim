@@ -40,6 +40,7 @@ end
 
 M.register = function()
     settings.project_type.mongoose = {
+        name = "Mongoose OS",
         commands = {
             build = {
                 type = 'terminal',

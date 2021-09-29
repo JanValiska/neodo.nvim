@@ -12,13 +12,17 @@ local function load_config(project)
     if not project.data_path then return end
     local config_file = project.data_path .. "/" .. cmake_config_file_name
     fs.file_exists('compile_commands.json')
+    local function load_conan()
+        project.config.has_conan = fs.file_exists('conanfile.txt')
+    end
     fs.read(config_file, 438, function(err, data)
         if err then
+            load_conan()
             return
         else
             local config = vim.fn.json_decode(data)
             project.config = config
-            project.config.has_conan = fs.file_exists('conanfile.txt')
+            load_conan()
         end
     end)
 end
@@ -29,6 +33,16 @@ local function save_config(project)
              function() notify.info("Configuration saved", "NeoDo > CMake") end)
 end
 
+local function get_selected_profile(project)
+    local profile_key = project.config.selected_profile
+    if not profile_key then return nil end
+    return project.config.profiles[profile_key]
+end
+
+local function get_profile(profile_key, project)
+    return project.config.profiles[profile_key]
+end
+
 local function select_profile(profile_key, project)
     project.config.selected_profile = profile_key
     local profile = project.config.profiles[profile_key]
@@ -36,7 +50,8 @@ local function select_profile(profile_key, project)
         if fs.file_exists('compile_commands.json') then
             fs.delete('compile_commands.json')
         end
-        fs.symlink(profile.build_dir .. '/compile_commands.json', 'compile_commands.json')
+        fs.symlink(profile.build_dir .. '/compile_commands.json',
+                   'compile_commands.json')
     end
 end
 
@@ -57,11 +72,8 @@ local function create_profile(_, project)
 end
 
 local function configure(_, project)
-    local profile = project.config.profiles[project.config.selected_profile]
+    local profile = get_selected_profile(project)
     local cmd = ''
-    if project.config.has_conan then
-        cmd = 'conan install -if ' .. profile.build_dir .. ' . && '
-    end
     cmd = cmd .. "cmake -B " .. profile.build_dir .. ' ' .. profile.cmake_params
     return {type = 'success', text = cmd}
 end
@@ -69,6 +81,7 @@ end
 M.register = function()
     local settings = require 'neodo.settings'
     settings.project_type.cmake = {
+        name = 'CMake',
         patterns = {'CMakeLists.txt'},
         on_attach = function(project) load_config(project) end,
         user_on_attach = nil,
@@ -141,9 +154,8 @@ M.register = function()
                     return {type = 'success', text = cmd}
                 end,
                 enabled = function(_, project)
-                    return project.config.selected_profile ~= nil and
-                               project.config.profiles[project.config
-                                   .selected_profile].configured == true
+                    local profile = get_selected_profile(project)
+                    return profile ~= nil and profile.configured
                 end,
                 errorformat = [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]]
             },
@@ -175,7 +187,7 @@ M.register = function()
                 end,
                 enabled = function(_, project)
                     return project.config.selected_target ~= nil
-                end,
+                end
             },
             conan_install = {
                 type = 'terminal',
@@ -183,7 +195,8 @@ M.register = function()
                 cmd = function(_, project)
                     local profile = project.config.profiles[project.config
                                         .selected_profile]
-                    local cmd = 'conan install -if ' .. profile.build_dir .. ' .'
+                    local cmd = 'conan install --build=missing -if ' ..
+                                    profile.build_dir .. ' .'
                     return {type = 'success', text = cmd}
                 end,
                 enabled = function(_, project)
@@ -196,11 +209,19 @@ M.register = function()
                 name = "CMake > Configure",
                 cmd = configure,
                 enabled = function(_, project)
-                    return project.config.selected_profile ~= nil
+                    local function conan_installed()
+                        local profile = get_selected_profile(project)
+                        if project.config.has_conan then
+                            return fs.file_exists(
+                                       profile.build_dir .. "/conan.lock")
+                        end
+                        return true
+                    end
+                    return (project.config.selected_profile ~= nil) and
+                               conan_installed()
                 end,
                 on_success = function(project)
-                    project.config.profiles[project.config.selected_profile]
-                        .configured = true
+                    get_selected_profile(project).configured = true
                     save_config(project)
                 end
             }
@@ -215,10 +236,12 @@ M.register = function()
                 if profile.configured == false then
                     statusline = statusline .. '(unconfigured)'
                 end
-            end
-            if project.config.selected_target then
-                statusline = statusline .. " ⦿ " ..
-                                 project.config.selected_target
+                if project.config.selected_target then
+                    statusline = statusline .. " ⦿ " ..
+                                     project.config.selected_target
+                end
+            else
+                statusline = statusline .. '(no profile)'
             end
             return statusline
         end
