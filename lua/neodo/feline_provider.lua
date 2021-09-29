@@ -22,7 +22,7 @@ local M = function(winid)
             local project_type = project.type or 'generic'
             local statusline = ' ' .. project_type
             if not project.data_path then
-                statusline = statusline .. '- unconfigured'
+                statusline = statusline .. '(no config)'
             end
             return statusline
         end

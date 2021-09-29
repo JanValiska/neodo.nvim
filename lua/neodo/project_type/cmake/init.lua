@@ -172,7 +172,10 @@ M.register = function()
                 name = 'CMake > Run selected target',
                 cmd = function(_, _)
                     return {type = 'error', text = 'Not implemented'}
-                end
+                end,
+                enabled = function(_, project)
+                    return project.config.selected_target ~= nil
+                end,
             },
             conan_install = {
                 type = 'terminal',
