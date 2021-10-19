@@ -8,13 +8,12 @@ local finders = require("telescope.finders")
 local pickers = require("telescope.pickers")
 local telescope_config = require("telescope.config").values
 local actions = require("telescope.actions")
-local entry_display = require("telescope.pickers.entry_display")
 local projects = require('neodo.projects')
 local log = require('neodo.log')
 local neodo = require('neodo')
 
 local on_command_selected = function(prompt_bufnr)
-    local selection = actions.get_selected_entry(prompt_bufnr)
+    local selection = require'telescope.actions.state'.get_selected_entry(prompt_bufnr)
     actions.close(prompt_bufnr)
     neodo.run(selection.value)
 end

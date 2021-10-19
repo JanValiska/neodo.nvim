@@ -16,17 +16,16 @@ local M = function(winid)
         if hash ~= nil then
             local neodo = require 'neodo'
             local project = neodo.get_project(hash)
-            local project_type = project.type or 'generic'
-            local statusline = ' ' .. (project.name or project_type)
-            if not project.data_path then
-                statusline = statusline .. '(no config)'
-                return statusline
-            end
 
             if project.statusline and type(project.statusline) == 'function' then
                 return project.statusline(project)
             end
 
+            local project_type = project.type or 'generic'
+            local statusline = ' ' .. (project.name or project_type)
+            if not project.data_path then
+                statusline = statusline .. '(no config)'
+            end
             return statusline
         end
     end

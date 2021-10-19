@@ -18,15 +18,18 @@ function M.build_cmd(params, _)
 
     if params.local_build then table.insert(cmd, "--local") end
 
+    if params.verbose then table.insert(cmd, "--verbose") end
+
     if params.port then table.insert(cmd, "--port " .. params.port) end
 
     return {type = 'success', text = utils.tbl_join(cmd, ' ')}
 end
 
-M.build_params = {platform = "esp32", local_build = true}
+M.build_params = {platform = "esp32", local_build = true, verbose = false}
 
 M.build_errorformat =
     [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]]
+
 
 function M.flash_cmd(params, _)
     local cmd = {'mos flash'}

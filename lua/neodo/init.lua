@@ -5,7 +5,6 @@ local has_telescope, telescope = pcall(require, "telescope")
 local configuration = require 'neodo.configuration'
 local global_settings = require 'neodo.settings'
 local root = require 'neodo.root'
-local neodo = require 'neodo.do'
 local log = require 'neodo.log'
 local notify = require 'neodo.notify'
 
@@ -194,7 +193,7 @@ function M.run(command_key)
         log('Unknown command \'' .. command_key .. '\'')
     else
         if command_enabled(command, project) then
-            neodo.command(command, project)
+            require'neodo.runner'.run(command, project)
         end
     end
 end
@@ -293,6 +292,7 @@ end
 local function register_built_in_project_types()
     require'neodo.project_type.mongoose'.register()
     require'neodo.project_type.cmake'.register()
+    require'neodo.project_type.php_composer'.register()
 end
 
 local function register_telescope_extension()
