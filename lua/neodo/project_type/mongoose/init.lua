@@ -56,7 +56,6 @@ M.register = function()
         },
         patterns = {'mos.yml'},
         on_attach = nil,
-        on_buffer_attach = nil,
         buffer_on_attach = nil,
         user_buffer_on_attach = nil,
     }

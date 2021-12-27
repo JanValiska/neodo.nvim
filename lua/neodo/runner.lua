@@ -9,8 +9,13 @@ local projects = require 'neodo.projects'
 -- list of currently running jobs
 local jobs = {}
 
+local function should_notify(command)
+    if command.notify ~= nil then return command.notify end
+    return true
+end
+
 local function handle_terminal_and_qf(command, job)
-    if not command.run_as_background_job and
+    if not command.type or command.type == 'terminal' and
         global_settings.terminal_close_on_success then
         vim.api.nvim_buf_delete(job.buf_id, {})
     end
@@ -37,7 +42,9 @@ local function on_event(job_id, data, event)
 
         if data == 0 then
             local title = 'NeoDo: ' .. command.name
+            if should_notify(command) then
             notify.info('SUCCESS', title)
+            end
             handle_terminal_and_qf(command, jobs[job_id]);
             if command.on_success then command.on_success(projects[jobs[job_id].project_hash]) end
         else
@@ -80,11 +87,6 @@ local function get_cmd_string(command, project)
         cmd = vim.fn.expandcmd(command.cmd)
     end
     return cmd
-end
-
-local function should_notify(command)
-    if command.notify ~= nil then return command.notify end
-    return true
 end
 
 local function start_function_command(command, project)

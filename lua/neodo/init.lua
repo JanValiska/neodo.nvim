@@ -150,6 +150,16 @@ local function command_enabled(command, project)
     return true
 end
 
+function M.config_file_read()
+    local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
+    print("Reading config file: " .. basepath)
+end
+
+function M.config_file_written()
+    local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
+    print("Config file written" .. basepath)
+end
+
 -- called when the buffer is entered first time
 function M.buffer_entered()
     if already_loaded() then
@@ -310,13 +320,15 @@ function M.setup(config)
 
     vim.api.nvim_exec([[
      augroup Mongoose
-       autocmd BufNewFile,BufRead * lua require'neodo'.buffer_new_or_read()
-     augroup end
-    ]], false)
-
-    vim.api.nvim_exec([[
-     augroup Mongoose
        autocmd BufEnter * lua require'neodo'.buffer_entered()
+       autocmd BufNewFile,BufRead * lua require'neodo'.buffer_new_or_read()
+
+       autocmd BufNewFile,BufRead */neodo/*/config.lua lua require'neodo'.config_file_read()
+       autocmd BufNewFile,BufRead */.neodo/config.lua lua require'neodo'.config_file_read()
+
+       autocmd BufWrite */neodo/*/config.lua lua require'neodo'.config_file_written()
+       autocmd BufWrite */.neodo/config.lua lua require'neodo'.config_file_written()
+
      augroup end
     ]], false)
 
