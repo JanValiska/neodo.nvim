@@ -9,6 +9,9 @@ function M.pick()
     local results = runner.get_enabled_commands_keys(project)
     if #results ~= 0 then
         vim.ui.select(results, {}, function(selection)
+            if selection == nil then
+                return
+            end
             runner.run(selection)
         end)
     else
