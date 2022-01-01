@@ -175,7 +175,14 @@ local function start_terminal_command(command, project)
     end)
 end
 
-function M.run(command, project)
+local function command_enabled(command, project)
+    if command.enabled and type(command.enabled) == 'function' then
+        return command.enabled(command.params, project)
+    end
+    return true
+end
+
+local function run_project_command(command, project)
     if global_settings.qf_close_on_start then vim.api.nvim_command("cclose") end
     if command.type == 'function' then
         start_function_command(command, project)
@@ -184,6 +191,35 @@ function M.run(command, project)
     else
         start_terminal_command(command, project)
     end
+end
+
+function M.run(command_key)
+    if vim.b.neodo_project_hash == nil then
+        log('Buffer not attached to any project')
+        return
+    end
+
+    local project = projects[vim.b.neodo_project_hash]
+    local command = project.commands[command_key]
+    if command == nil then
+        log('Unknown command \'' .. command_key .. '\'')
+    else
+        if command_enabled(command, project) then
+            run_project_command(command, project)
+        end
+    end
+end
+
+function M.get_enabled_commands_keys(project)
+    if project == nil or project.commands == nil then
+        return {}
+    end
+
+    local keys = {}
+    for key, command in pairs(project.commands) do
+        if command_enabled(command, project) then table.insert(keys, key) end
+    end
+    return keys
 end
 
 return M

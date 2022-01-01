@@ -8,6 +8,8 @@ local root = require 'neodo.root'
 local log = require 'neodo.log'
 local notify = require 'neodo.notify'
 
+local picker = require'neodo.picker'
+
 -- per project configurations
 local projects = require 'neodo.projects'
 
@@ -143,13 +145,6 @@ local buftype_permit = {'', 'nowrite'}
 
 local function already_loaded() return vim.b.neodo_project_hash ~= nil end
 
-local function command_enabled(command, project)
-    if command.enabled and type(command.enabled) == 'function' then
-        return command.enabled(command.params, project)
-    end
-    return true
-end
-
 function M.config_file_read()
     local basepath = vim.fn.expand(vim.fn.expand('%:p:h'))
     print("Reading config file: " .. basepath)
@@ -192,20 +187,7 @@ function M.get_project(hash) return projects[hash] end
 
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
-    if vim.b.neodo_project_hash == nil then
-        log('Buffer not attached to any project')
-        return
-    end
-
-    local project = projects[vim.b.neodo_project_hash]
-    local command = project.commands[command_key]
-    if command == nil then
-        log('Unknown command \'' .. command_key .. '\'')
-    else
-        if command_enabled(command, project) then
-            require'neodo.runner'.run(command, project)
-        end
-    end
+    require'neodo.runner'.run(command_key)
 end
 
 function M.get_command_params(command_key)
@@ -229,11 +211,7 @@ function M.neodo()
         log('Buffer not attached to any project')
         return
     else
-        if has_telescope then
-            telescope.extensions.neodo.neodo()
-        else
-            log("Provide command")
-        end
+        picker.pick()
     end
 end
 
@@ -243,14 +221,6 @@ function M.handle_vim_command(command_key)
     else
         M.run(command_key)
     end
-end
-
-function M.get_enabled_commands_keys(project)
-    local keys = {}
-    for key, command in pairs(project.commands) do
-        if command_enabled(command, project) then table.insert(keys, key) end
-    end
-    return keys
 end
 
 function M.completions_helper()
