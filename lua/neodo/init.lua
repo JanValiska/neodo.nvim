@@ -211,7 +211,7 @@ function M.neodo()
         log('Buffer not attached to any project')
         return
     else
-        picker.pick()
+        picker.pick_command()
     end
 end
 

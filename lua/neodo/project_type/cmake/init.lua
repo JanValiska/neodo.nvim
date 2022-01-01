@@ -28,6 +28,10 @@ local function load_config(project)
 end
 
 local function save_config(project)
+    if not project.data_path then
+        notify.error("Cannot save config, project config data path not found", "NeoDo > CMake")
+    return
+    end
     local config_file = project.data_path .. "/" .. cmake_config_file_name
     fs.write(config_file, 444, vim.fn.json_encode(project.config),
              function() notify.info("Configuration saved", "NeoDo > CMake") end)
@@ -43,9 +47,7 @@ local function get_profile(profile_key, project)
     return project.config.profiles[profile_key]
 end
 
-local function select_profile(profile_key, project)
-    project.config.selected_profile = profile_key
-    local profile = project.config.profiles[profile_key]
+local function switch_compile_commands(profile)
     if profile.configured then
         if fs.file_exists('compile_commands.json') then
             fs.delete('compile_commands.json')
@@ -55,19 +57,37 @@ local function select_profile(profile_key, project)
     end
 end
 
-local function create_profile(_, project)
-    local profile = {}
-    profile.name = vim.fn.input("Profile name: ")
-    if not profile.name then return end
-    local profile_key = string.gsub(profile.name, "%s+", "-")
-    profile.build_dir = 'build-' .. profile_key
-    fs.mkdir(profile.build_dir)
-    profile.cmake_params = vim.fn.input("CMake params: ",
-                                        "-DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1")
-    profile.configured = false
-    project.config.profiles[profile_key] = profile
-    select_profile(profile_key, project)
+local function select_profile(profile_key, project)
+    project.config.selected_profile = profile_key
+    local profile = project.config.profiles[profile_key]
+    switch_compile_commands(profile)
     save_config(project)
+end
+
+local function delete_profile(profile_key, project)
+    local profile = project.config.profiles[profile_key]
+    fs.delete(profile.build_dir)
+    project.config.profiles[profile_key] = nil
+    project.config.selected_profile = nil
+    save_config(project)
+end
+
+local function create_profile(_, project)
+    vim.ui.input({prompt = "Provide new profile name: "}, function(input)
+        local profile = {}
+        profile.name = input
+        if not profile.name then return end
+        local profile_key = string.gsub(profile.name, "%s+", "-")
+        profile.build_dir = 'build-' .. profile_key
+        fs.mkdir(profile.build_dir)
+        vim.ui.input({prompt = "Provide CMake params: ", default = "-DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1"}, function(params)
+            profile.cmake_params = params
+            profile.configured = false
+            project.config.profiles[profile_key] = profile
+            select_profile(profile_key, project)
+            save_config(project)
+        end)
+    end)
     return {type = 'success'}
 end
 
@@ -100,11 +120,11 @@ M.register = function()
                 name = "CMake > Select profile",
                 notify = false,
                 cmd = function(_, project)
-                    picker.pick("Select profile",
+                    picker.pick("Select profile: ",
                                 vim.tbl_keys(project.config.profiles),
                                 function(profile)
                         select_profile(profile, project)
-                    end, {})
+                    end)
                     return {type = 'success'}
                 end,
                 enabled = function(_, project)
@@ -116,12 +136,11 @@ M.register = function()
                 name = "CMake > Delete profile",
                 notify = false,
                 cmd = function(_, project)
-                    picker.pick("Select profile to delete",
+                    picker.pick("Select profile to delete: ",
                                 vim.tbl_keys(project.config.profiles),
-                                function(selection)
-                        notify.info("Selected: " .. selection,
-                                    "NeoDo: CMake > Delete profile")
-                    end, {})
+                                function(profile)
+                                    delete_profile(profile, project)
+                    end)
                     return {type = 'success'}
                 end,
                 enabled = function(_, project)
@@ -133,11 +152,11 @@ M.register = function()
                 name = "CMake > Select target",
                 notify = false,
                 cmd = function(_, _)
-                    picker.pick("Select target", vim.tbl_keys(targets),
+                    picker.pick("Select target: ", vim.tbl_keys(targets),
                                 function(selection)
                         notify.info("Selected: " .. selection,
                                     "NeoDo: CMake > Select target")
-                    end, {})
+                    end)
                     return {type = 'success'}
                 end,
                 enabled = function(_, _)
@@ -221,7 +240,9 @@ M.register = function()
                                conan_installed()
                 end,
                 on_success = function(project)
-                    get_selected_profile(project).configured = true
+                    local profile = get_selected_profile(project)
+                    profile.configured = true
+                    switch_compile_commands(profile)
                     save_config(project)
                 end
             }

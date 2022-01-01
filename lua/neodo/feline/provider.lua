@@ -9,6 +9,13 @@ local function get_buf_variable(buf, var_name)
     end
 end
 
+local function add_config_status(statusline, project)
+    if not project.data_path then
+        return statusline .. '(no config)'
+    end
+    return statusline
+end
+
 local M = function(winid)
     local buf = vim.api.nvim_win_get_buf(winid)
     if vim.api.nvim_buf_is_loaded(buf) then
@@ -17,16 +24,14 @@ local M = function(winid)
             local neodo = require 'neodo'
             local project = neodo.get_project(hash)
 
+            local statusline = ''
             if project.statusline and type(project.statusline) == 'function' then
-                return project.statusline(project)
+                statusline = project.statusline(project)
+            else
+                local project_type = project.type or 'generic'
+                statusline = ' ' .. (project.name or project_type)
             end
-
-            local project_type = project.type or 'generic'
-            local statusline = ' ' .. (project.name or project_type)
-            if not project.data_path then
-                statusline = statusline .. '(no config)'
-            end
-            return statusline
+            return add_config_status(statusline, project)
         end
     end
     return ''
