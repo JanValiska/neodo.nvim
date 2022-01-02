@@ -3,10 +3,9 @@ local M = {}
 local picker = require 'neodo.picker'
 local notify = require 'neodo.notify'
 local fs = require 'neodo.file'
+local code_model = require'neodo.project_type.cmake.code_model'
 
 local cmake_config_file_name = 'neodo_cmake_config.json'
-
-local targets = {}
 
 local function load_config(project)
     if not project.data_path then return end
@@ -22,6 +21,14 @@ local function load_config(project)
         else
             local config = vim.fn.json_decode(data)
             project.config = config
+            for key , profile in pairs(project.config.profiles) do
+                if profile.configured then
+                    project.code_models[key] = code_model:new(profile.build_dir)
+                end
+            end
+            for _, model in pairs(project.code_models) do
+                model:read_reply()
+            end
             load_conan()
         end
     end)
@@ -43,10 +50,6 @@ local function get_selected_profile(project)
     return project.config.profiles[profile_key]
 end
 
-local function get_profile(profile_key, project)
-    return project.config.profiles[profile_key]
-end
-
 local function switch_compile_commands(profile)
     if profile.configured then
         if fs.file_exists('compile_commands.json') then
@@ -59,6 +62,7 @@ end
 
 local function select_profile(profile_key, project)
     project.config.selected_profile = profile_key
+    project.config.selected_target = nil
     local profile = project.config.profiles[profile_key]
     switch_compile_commands(profile)
     save_config(project)
@@ -68,34 +72,50 @@ local function delete_profile(profile_key, project)
     local profile = project.config.profiles[profile_key]
     fs.delete(profile.build_dir)
     project.config.profiles[profile_key] = nil
+    project.code_models[profile_key] = nil
     project.config.selected_profile = nil
     save_config(project)
 end
 
 local function create_profile(_, project)
-    vim.ui.input({prompt = "Provide new profile name: "}, function(input)
+    vim.ui.input({prompt = "Provide new profile name: ", default = "Debug"}, function(input)
         local profile = {}
         profile.name = input
         if not profile.name then return end
         local profile_key = string.gsub(profile.name, "%s+", "-")
         profile.build_dir = 'build-' .. profile_key
         fs.mkdir(profile.build_dir)
-        vim.ui.input({prompt = "Provide CMake params: ", default = "-DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1"}, function(params)
-            profile.cmake_params = params
-            profile.configured = false
-            project.config.profiles[profile_key] = profile
-            select_profile(profile_key, project)
-            save_config(project)
-        end)
+        vim.ui.input(
+            {
+                prompt = "Provide CMake params: ",
+                default = "-DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug"
+            },
+            function(params)
+                profile.cmake_params = params
+                profile.configured = false
+                project.config.profiles[profile_key] = profile
+                select_profile(profile_key, project)
+                project.config.selected_target = nil
+                save_config(project)
+            end
+        )
     end)
     return {type = 'success'}
 end
 
 local function configure(_, project)
     local profile = get_selected_profile(project)
+    local profile_key = project.config.selected_profile
+    project.code_models[profile_key] = code_model:new(profile.build_dir)
+    project.code_models[profile_key]:write_query()
     local cmd = ''
     cmd = cmd .. "cmake -B " .. profile.build_dir .. ' ' .. profile.cmake_params
     return {type = 'success', text = cmd}
+end
+
+local function get_targets(project)
+    local profile_key = project.config.selected_profile
+    return project.code_models[profile_key]:get_targets()
 end
 
 M.register = function()
@@ -108,6 +128,7 @@ M.register = function()
         buffer_on_attach = nil,
         user_buffer_on_attach = nil,
         config = {selected_target = nil, selected_profile = nil, profiles = {}},
+        code_models = {},
         commands = {
             create_profile = {
                 type = 'function',
@@ -151,16 +172,21 @@ M.register = function()
                 type = 'function',
                 name = "CMake > Select target",
                 notify = false,
-                cmd = function(_, _)
-                    picker.pick("Select target: ", vim.tbl_keys(targets),
+                cmd = function(_, project)
+                    local targets = get_targets(project)
+                    picker.pick("Select target: ", targets,
                                 function(selection)
-                        notify.info("Selected: " .. selection,
-                                    "NeoDo: CMake > Select target")
-                    end)
+                                    project.config.selected_target = selection
+                                    save_config(project)
+                                end)
                     return {type = 'success'}
                 end,
-                enabled = function(_, _)
-                    return vim.tbl_count(targets) ~= 0
+                enabled = function(_, project)
+                    local profile = get_selected_profile(project)
+                    if not profile then
+                        return false
+                    end
+                    return profile.configured and vim.tbl_count(get_targets(project)) ~= 0
                 end
             },
             build_all = {
@@ -186,10 +212,14 @@ M.register = function()
                         return {type = 'error', text = "No target selected"}
                     end
 
+                    local profile = project.config.profiles[project.config
+                                        .selected_profile]
+                    local cmd = "cmake --build " .. profile.build_dir .. " --target " ..
+                            project.config.selected_target
+
                     return {
                         type = 'success',
-                        text = 'cmake --build build-debug --target ' ..
-                            project.config.selected_target
+                        text = cmd
                     }
 
                 end,
@@ -241,6 +271,8 @@ M.register = function()
                 end,
                 on_success = function(project)
                     local profile = get_selected_profile(project)
+                    local profile_key = project.config.selected_profile
+                    project.code_models[profile_key]:read_reply()
                     profile.configured = true
                     switch_compile_commands(profile)
                     save_config(project)
