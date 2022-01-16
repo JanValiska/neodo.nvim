@@ -136,33 +136,36 @@ local function on_project_dir_detected(p)
 	call_buffer_on_attach(project)
 end
 
-local filetype_ignore = { "qf" }
-
-local buftype_permit = { "", "nowrite" }
-
 local function already_loaded()
 	return vim.b.neodo_project_hash ~= nil
 end
 
 function M.config_file_read()
-	local basepath = vim.fn.expand(vim.fn.expand("%:p:h"))
-	print("Reading config file: " .. basepath)
+	-- local basepath = vim.fn.expand(vim.fn.expand("%:p:h"))
+	-- print("Reading config file: " .. basepath)
 end
 
 function M.config_file_written()
-	local basepath = vim.fn.expand(vim.fn.expand("%:p:h"))
-	print("Config file written" .. basepath)
+	-- local basepath = vim.fn.expand(vim.fn.expand("%:p:h"))
+	-- print("Config file written" .. basepath)
 end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
+    -- ignore files with no filetype specified
 	local ft = vim.bo.filetype
 	if ft == "" then
 		return
 	end
+
+    -- ignore some special filetypes (qf, etc...)
+	local filetype_ignore = { "qf" }
 	if vim.tbl_contains(filetype_ignore, ft) then
 		return
 	end
+
+    -- permit only for specified buffer types
+	local buftype_permit = { "", "nowrite" }
 	if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then
 		return
 	end
@@ -176,18 +179,10 @@ function M.buffer_entered()
 			return
 		end
 
-        -- replace double // separators
-        basepath = basepath:gsub("//", "/")
+		-- replace double // separators
+		basepath = basepath:gsub("//", "/")
 
 		root.find_project(basepath, on_project_dir_detected)
-	end
-end
-
-function M.buffer_new_or_read()
-	-- if buffer is assigned to project already, just change root if needed
-	if already_loaded() then
-		change_root(projects[vim.b.neodo_project_hash].path)
-		return
 	end
 end
 
@@ -237,7 +232,7 @@ function M.completions_helper()
 	local project_hash = vim.b.neodo_project_hash
 	if project_hash ~= nil then
 		local project = projects[project_hash]
-		return vim.tbl_keys(M.get_enabled_commands_keys(project))
+        return require'neodo.runner'.get_enabled_commands_keys(project)
 	end
 	return {}
 end
@@ -295,7 +290,6 @@ function M.setup(config)
 		global_settings = vim.tbl_deep_extend("force", global_settings, config)
 	end
 
-	-- autocmd BufNewFile,BufRead * lua require'neodo'.buffer_new_or_read()
 	vim.api.nvim_exec(
 		[[
      augroup Mongoose

@@ -275,15 +275,15 @@ M.register = function()
 			},
 		},
 		statusline = function(project)
-			local statusline = " CMake"
+			local statusline = "CMake"
 			if project.config.selected_profile then
-				statusline = statusline .. "" .. project.config.selected_profile
+				statusline = statusline .. "/" .. project.config.selected_profile
 				local profile = project.config.profiles[project.config.selected_profile]
 				if profile.configured == false then
 					statusline = statusline .. "(unconfigured)"
 				end
 				if project.config.selected_target then
-					statusline = statusline .. "" .. project.config.selected_target
+					statusline = statusline .. "/" .. project.config.selected_target
 				end
 			else
 				statusline = statusline .. "(no profile)"

@@ -24,12 +24,11 @@ local M = function()
             local neodo = require 'neodo'
             local project = neodo.get_project(hash)
 
-            local statusline = ''
+            local statusline = 'NeoDo/'
             if project.statusline and type(project.statusline) == 'function' then
-                statusline = project.statusline(project)
+                statusline = statusline .. project.statusline(project)
             else
-                local project_type = project.type or 'generic'
-                statusline = 'P ' .. (project.name or project_type)
+                statusline = statusline .. (project.name or project.type or 'generic')
             end
             return add_config_status(statusline, project)
         end
