@@ -16,8 +16,8 @@ local function add_config_status(statusline, project)
     return statusline
 end
 
-local M = function(winid)
-    local buf = vim.api.nvim_win_get_buf(winid)
+local M = function()
+    local buf = vim.api.nvim_win_get_buf(0)
     if vim.api.nvim_buf_is_loaded(buf) then
         local hash = get_buf_variable(buf, "neodo_project_hash")
         if hash ~= nil then
@@ -29,7 +29,7 @@ local M = function(winid)
                 statusline = project.statusline(project)
             else
                 local project_type = project.type or 'generic'
-                statusline = ' ' .. (project.name or project_type)
+                statusline = 'P ' .. (project.name or project_type)
             end
             return add_config_status(statusline, project)
         end
