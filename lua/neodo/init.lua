@@ -133,8 +133,6 @@ local function on_project_dir_detected(p, bufnr)
 		return
 	end
 
-    print("Detected:", vim.inspect(p))
-
 	-- change root
 	change_root(p.dir)
 
