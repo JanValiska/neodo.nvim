@@ -79,14 +79,12 @@ end
 
 function M.file_exists(file)
     local stat = uv.fs_stat(file)
-    if stat ~= nil and stat.type == "file" then return true end
-    return false
+    return stat ~= nil and stat.type == "file"
 end
 
 function M.dir_exists(dir)
     local stat = uv.fs_stat(dir)
-    if stat ~= nil and stat.type == "directory" then return true end
-    return false
+    return stat ~= nil and stat.type == "directory"
 end
 
 local function rmdir(path)
@@ -119,25 +117,30 @@ end
 
 function M.mkdir(path) uv.fs_mkdir(path, 448) end
 
-local function create_directories_from_table(t)
+local function starts_by_root(p)
+    return string.sub(p, 1, 1) == '/'
+end
+
+local function create_directories_from_table(t, root)
     local p = ''
+    if root then
+        p = '/'
+    end
     for index, dir  in ipairs(t) do
        if index == 1 then
-           p = dir
+           p = p .. dir
        else
-           p = p .. delimiter .. dir
+           p = M.join_path(p, dir)
        end
-       M.mkdir(p)
+       if not M.dir_exists(p) then
+           M.mkdir(p)
+       end
     end
 end
 
 function M.create_directories(dir)
-    if type(dir) == 'table' then
-        create_directories_from_table(dir)
-    else
-        local dirs = split(dir, delimiter)
-        create_directories_from_table(dirs)
-    end
+    local dirs = split(dir, delimiter)
+    create_directories_from_table(dirs, starts_by_root(dir))
 end
 
 function M.touch(path)

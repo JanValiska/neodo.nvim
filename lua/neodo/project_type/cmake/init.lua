@@ -28,8 +28,8 @@ local function load_config(project)
 					project.code_models[key] = code_model:new(profile.build_dir)
 				end
 			end
-			for _, model in pairs(project.code_models) do
-				model:read_reply()
+			for _, cm in pairs(project.code_models) do
+				cm:read_reply()
 			end
 			load_conan()
 		end
@@ -119,10 +119,7 @@ end
 local function get_targets(project)
 	local profile_key = project.config.selected_profile
 	local cm = project.code_models[profile_key]
-	if cm then
-		return project.code_models[profile_key]:get_targets()
-	end
-	return {}
+    return cm:get_targets()
 end
 
 M.register = function()
@@ -179,7 +176,7 @@ M.register = function()
 				notify = false,
 				cmd = function(_, project)
 					local targets = get_targets(project)
-					picker.pick("Select target: ", targets, function(selection)
+					picker.pick("Select target: ", vim.tbl_keys(targets), function(selection)
 						project.config.selected_target = selection
 						save_config(project)
 					end)
@@ -191,6 +188,15 @@ M.register = function()
 						return false
 					end
 					return profile.configured and vim.tbl_count(get_targets(project)) ~= 0
+				end,
+			},
+			clean = {
+				type = "background",
+				name = "Clean",
+				cmd = function(_, project)
+					local profile = project.config.profiles[project.config.selected_profile]
+					local cmd = "cmake --build " .. profile.build_dir .. " --target clean"
+					return { type = "success", text = cmd }
 				end,
 			},
 			build_all = {
@@ -275,18 +281,19 @@ M.register = function()
 			},
 		},
 		statusline = function(project)
-			local statusline = "CMake"
+			local statusline = ""
 			if project.config.selected_profile then
-				statusline = statusline .. "/" .. project.config.selected_profile
+				statusline = project.config.selected_profile
 				local profile = project.config.profiles[project.config.selected_profile]
-				if profile.configured == false then
-					statusline = statusline .. "(unconfigured)"
-				end
-				if project.config.selected_target then
-					statusline = statusline .. "/" .. project.config.selected_target
+				if not profile.configured then
+					statusline = statusline .. "(⚠ unconfigured)"
+				else
+					if project.config.selected_target then
+						statusline = statusline .. " ❯ " .. project.config.selected_target
+					end
 				end
 			else
-				statusline = statusline .. "(no profile)"
+				statusline = "(⚠ no profile)"
 			end
 			return statusline
 		end,

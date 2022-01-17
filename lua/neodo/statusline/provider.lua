@@ -1,3 +1,5 @@
+local runner = require'neodo.runner'
+
 local function get_buf_variable(buf, var_name)
     local s, v = pcall(function()
         return vim.api.nvim_buf_get_var(buf, var_name)
@@ -9,9 +11,10 @@ local function get_buf_variable(buf, var_name)
     end
 end
 
-local function add_config_status(statusline, project)
-    if not project.data_path then
-        return statusline .. '(no config)'
+local function add_jobs_status(statusline)
+    local jobs = runner.get_jobs_count()
+    if jobs ~= 0 then
+        return statusline .. ' Running: ' .. tostring(jobs)
     end
     return statusline
 end
@@ -24,13 +27,14 @@ local M = function()
             local neodo = require 'neodo'
             local project = neodo.get_project(hash)
 
-            local statusline = 'NeoDo/'
+            local statusline = ' '
             if project.statusline and type(project.statusline) == 'function' then
                 statusline = statusline .. project.statusline(project)
             else
-                statusline = statusline .. (project.name or project.type or 'generic')
+                statusline = statusline .. (project.name or project.type or 'Generic')
             end
-            return add_config_status(statusline, project)
+            statusline = add_jobs_status(statusline)
+            return statusline
         end
     end
     return ''

@@ -9,6 +9,8 @@ local log = require("neodo.log")
 local notify = require("neodo.notify")
 
 local picker = require("neodo.picker")
+local runner = require("neodo.runner")
+local utils = require("neodo.utils")
 
 -- per project configurations
 local projects = require("neodo.projects")
@@ -69,28 +71,10 @@ local function load_project(dir, type)
 		return projects[hash]
 	end
 
-	local config_file = nil
-	local data_path = nil
+	-- Check if config file and datapath exists
+	local config_file, data_path = configuration.get_project_config_and_datapath(dir)
 
 	-- load project
-	if configuration.has_project_in_the_source_config(dir) then
-		if global_settings.load_project_notify then
-			notify.info(dir, "NeoDo: Loading " .. (type or "generic") .. " project settings(.neodo)")
-		end
-		config_file = configuration.get_project_in_the_source_config(dir)
-		data_path = configuration.get_project_in_source_data_path(dir)
-	elseif configuration.has_project_out_of_source_config(dir) then
-		if global_settings.load_project_notify then
-			notify.info(dir, "NeoDo: Loading " .. (type or "generic") .. " project settings(out of source)")
-		end
-		config_file = configuration.get_project_out_of_source_config(dir)
-		data_path = configuration.get_project_data_path(dir)
-	else
-		if global_settings.load_project_notify then
-			notify.info(dir, "NeoDo: Loading " .. (type or "generic") .. " project settings(global)")
-		end
-	end
-
 	local project = {}
 	if config_file ~= nil then
 		if type == nil then
@@ -152,19 +136,19 @@ end
 
 -- called when the buffer is entered first time
 function M.buffer_entered()
-    -- ignore files with no filetype specified
+	-- ignore files with no filetype specified
 	local ft = vim.bo.filetype
 	if ft == "" then
 		return
 	end
 
-    -- ignore some special filetypes (qf, etc...)
+	-- ignore some special filetypes (qf, etc...)
 	local filetype_ignore = { "qf" }
 	if vim.tbl_contains(filetype_ignore, ft) then
 		return
 	end
 
-    -- permit only for specified buffer types
+	-- permit only for specified buffer types
 	local buftype_permit = { "", "nowrite" }
 	if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then
 		return
@@ -190,9 +174,21 @@ function M.get_project(hash)
 	return projects[hash]
 end
 
+function M.has_config()
+	local buf = vim.api.nvim_win_get_buf(0)
+	if vim.api.nvim_buf_is_loaded(buf) then
+		local hash = utils.get_buf_variable(buf, "neodo_project_hash")
+		if hash ~= nil then
+			local project = projects[hash]
+			return project.config_file ~= nil
+		end
+	end
+	return false
+end
+
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
-	require("neodo.runner").run(command_key)
+	runner.run(command_key)
 end
 
 function M.get_command_params(command_key)
@@ -232,41 +228,55 @@ function M.completions_helper()
 	local project_hash = vim.b.neodo_project_hash
 	if project_hash ~= nil then
 		local project = projects[project_hash]
-        return require'neodo.runner'.get_enabled_commands_keys(project)
+		return runner.get_enabled_commands_keys(project)
 	end
 	return {}
 end
 
+local function create_project_config(project)
+	local items = {
+		"Out of source",
+		"In the source",
+	}
+	vim.ui.select(items, { prompt = "Create project config" }, function(_, idx)
+		if idx == nil then
+			return
+		end
+		local f = nil
+		if idx == 1 then
+			f = configuration.create_out_of_source_config_file
+		end
+		if idx == 2 then
+			f = configuration.create_in_the_source_config_file
+		end
+
+		if f then
+			f(project.path, function(path)
+				if path then
+					vim.api.nvim_exec(":e " .. path, false)
+					project.config_file = path
+				end
+			end)
+		end
+	end)
+end
+
 function M.edit_project_settings()
 	local project_hash = vim.b.neodo_project_hash
-	if project_hash ~= nil then
-		local project = projects[project_hash]
-		if project.config_file then
-			vim.api.nvim_exec(":e " .. project.config_file, false)
-		else
-			local ans = vim.fn.input("Create project config out of source(o), in the source(i), cancel(c): ")
-			if ans == "o" then
-				configuration.create_out_of_source_config_file(project.path, function(path)
-					if path then
-						vim.api.nvim_exec(":e " .. path, false)
-						project.config_file = path
-					end
-				end)
-			elseif ans == "i" then
-				configuration.create_in_the_source_config_file(project.path, function(path)
-					if path then
-						vim.api.nvim_exec(":e " .. path, false)
-						project.config_file = path
-					end
-				end)
-			else
-				log("Canceling")
-				return
-			end
-		end
-	else
+
+	if project_hash == nil then
 		log("Cannot edit project settings. Current buffer is not part of project.")
+		return
 	end
+
+	-- if project has config, edit it
+	local project = projects[project_hash]
+	if project.config_file then
+		vim.api.nvim_exec(":e " .. project.config_file, false)
+		return
+	end
+
+    create_project_config(project)
 end
 
 local function register_built_in_project_types()

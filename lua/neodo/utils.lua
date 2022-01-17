@@ -46,4 +46,15 @@ end
 function M.close_win(winnr)
     if winnr ~= nil then vim.api.nvim_win_close(winnr, {force = true}) end
 end
+
+function M.get_buf_variable(buf, var_name)
+    local s, v = pcall(function()
+        return vim.api.nvim_buf_get_var(buf, var_name)
+    end)
+    if s then
+        return v
+    else
+        return nil
+    end
+end
 return M
