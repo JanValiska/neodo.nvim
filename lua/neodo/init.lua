@@ -251,11 +251,14 @@ local function create_project_config(project)
 		end
 
 		if f then
-			f(project.path, function(path)
-				if path then
-					vim.api.nvim_exec(":e " .. path, false)
-					project.config_file = path
+			f(project.path, function(config, data_path)
+				if config then
+					project.config_file = config
+					vim.api.nvim_exec(":e " .. config, false)
 				end
+                if data_path then
+                    project.config_file = data_path
+                end
 			end)
 		end
 	end)

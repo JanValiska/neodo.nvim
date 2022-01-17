@@ -198,6 +198,13 @@ M.register = function()
 					local cmd = "cmake --build " .. profile.build_dir .. " --target clean"
 					return { type = "success", text = cmd }
 				end,
+				enabled = function(_, project)
+					local profile = get_selected_profile(project)
+					if not profile then
+						return false
+					end
+					return profile.configured
+				end,
 			},
 			build_all = {
 				type = "terminal",
