@@ -283,7 +283,7 @@ local function create_project_config(project, callback)
 				callback(config)
 			end
 			if data_path then
-				project.config_file = data_path
+				project.data_path = data_path
 			end
 		end)
 	end)
