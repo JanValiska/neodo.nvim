@@ -218,6 +218,10 @@ function M.run(command_key)
 	runner.run(command_key)
 end
 
+function M.run_last()
+    runner.run_last()
+end
+
 function M.get_command_params(command_key)
 	if vim.b.neodo_project_hash == nil then
 		log("Buffer not attached to any project")

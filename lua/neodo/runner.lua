@@ -230,6 +230,29 @@ function M.run(command_key)
         log('Unknown command \'' .. command_key .. '\'')
     else
         if command_enabled(command, project) then
+            project.last_command = command_key
+            run_project_command(command, project)
+        end
+    end
+end
+
+function M.run_last()
+    local hash = vim.b.neodo_project_hash
+    if hash == nil then
+        log('Buffer not attached to any project')
+        return
+    end
+
+    local project = projects[vim.b.neodo_project_hash]
+    if not project.last_command then
+        log('No last command defined')
+        return
+    end
+    local command = project.commands[project.last_command]
+    if command == nil then
+        log('Unknown command \'' .. project.last_command .. '\'')
+    else
+        if command_enabled(command, project) then
             run_project_command(command, project)
         end
     end
