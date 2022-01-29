@@ -16,7 +16,7 @@ local function get_in_the_source_project_data_path(project_path)
 end
 
 function M.get_project_config_and_datapath(project_path)
-    local in_source_dp = get_out_of_source_project_data_path(project_path)
+    local in_source_dp = get_in_the_source_project_data_path(project_path)
     local in_source_config = fs.join_path(in_source_dp, config_file_name)
     if fs.file_exists(in_source_config) then
         return in_source_config, in_source_dp

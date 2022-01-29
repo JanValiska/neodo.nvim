@@ -27,6 +27,10 @@ local M = function()
             local neodo = require 'neodo'
             local project = neodo.get_project(hash)
 
+            if project == nil then
+                return ''
+            end
+
             local statusline = ' '
             if project.statusline and type(project.statusline) == 'function' then
                 statusline = statusline .. project.statusline(project)

@@ -207,6 +207,9 @@ function M.has_config()
 		local hash = utils.get_buf_variable(buf, "neodo_project_hash")
 		if hash ~= nil then
 			local project = projects[hash]
+            if project == nil then
+                return false
+            end
 			return project.config_file ~= nil
 		end
 	end
