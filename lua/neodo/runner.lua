@@ -72,21 +72,17 @@ local function on_event(job_id, data, event)
 				notify.warning("Interrupted (SIGINT)", text)
 				terminal_on_success(command, running_command)
 			else
-				if command.errorformat then
-					vim.fn.setqflist({}, " ", {
-						title = command.cmd,
-						efm = command.errorformat,
-						lines = running_command.output_lines,
-					})
-				else
-					vim.fn.setqflist(running_command.output_lines, "r")
-				end
-				vim.api.nvim_command("doautocmd QuickFixCmdPost")
-
 				local title = "NeoDo: " .. command.name
 				notify.error("FAILED with: " .. data, title)
 				terminal_on_fail(command, running_command)
+                vim.fn.setqflist({}, " ", {
+                    title = command.cmd,
+                    efm = command.errorformat,
+                    lines = running_command.output_lines,
+                })
 				vim.api.nvim_command("copen")
+                vim.cmd('wincmd p')
+                vim.cmd('stopinsert')
 			end
 		end
 
