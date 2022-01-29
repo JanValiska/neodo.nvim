@@ -2,7 +2,7 @@ local M = {}
 
 local utils = require 'neodo.utils'
 local settings = require 'neodo.settings'
-local log = require 'neodo.log'
+local compilers = require("neodo.compilers")
 
 function M.build_cmd(params, _)
     local cmd = {'mos build'}
@@ -27,8 +27,7 @@ end
 
 M.build_params = {platform = "esp32", local_build = true, verbose = false}
 
-M.build_errorformat =
-    [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]]
+M.build_errorformat = compilers.get_errorformat('gcc')
 
 
 function M.flash_cmd(params, _)

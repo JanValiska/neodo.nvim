@@ -4,6 +4,7 @@ local picker = require("neodo.picker")
 local notify = require("neodo.notify")
 local fs = require("neodo.file")
 local code_model = require("neodo.project_type.cmake.code_model")
+local compilers = require("neodo.compilers")
 
 local cmake_config_file_name = "neodo_cmake_config.json"
 
@@ -119,7 +120,7 @@ end
 local function get_targets(project)
 	local profile_key = project.config.selected_profile
 	local cm = project.code_models[profile_key]
-    return cm:get_targets()
+	return cm:get_targets()
 end
 
 M.register = function()
@@ -218,7 +219,7 @@ M.register = function()
 					local profile = get_selected_profile(project)
 					return profile ~= nil and profile.configured
 				end,
-				errorformat = [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]],
+				errorformat = compilers.get_errorformat("gcc"),
 			},
 			build_selected_target = {
 				type = "terminal",
@@ -239,7 +240,7 @@ M.register = function()
 				enabled = function(_, project)
 					return project.config.selected_target ~= nil
 				end,
-				errorformat = [[%f:%l:%c:\ %trror:\ %m,%f:%l:%c:\ %tarning:\ %m,%f:%l:\ %tarning:\ %m,%-G%.%#,%.%#]],
+				errorformat = compilers.get_errorformat("gcc"),
 			},
 			run_selected_target = {
 				type = "terminal",

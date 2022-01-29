@@ -26,12 +26,15 @@ local function should_notify(command)
 	return true
 end
 
-local function handle_terminal_and_qf(command, job)
+local function terminal_on_success(command, job)
 	if not command.type or command.type == "terminal" and global_settings.terminal_close_on_success then
 		vim.api.nvim_buf_delete(job.buf_id, {})
 	end
-	if global_settings.qf_close_on_success then
-		vim.api.nvim_command("cclose")
+end
+
+local function terminal_on_fail(command, job)
+	if not command.type or command.type == "terminal" and global_settings.terminal_close_on_error then
+		vim.api.nvim_buf_delete(job.buf_id, {})
 	end
 end
 
@@ -41,7 +44,11 @@ local function on_event(job_id, data, event)
 	if event == "stdout" or event == "stderr" then
 		if data then
 			for _, line in ipairs(data) do
-				running_command.output_lines[#running_command.output_lines + 1] = line:gsub("\r", "")
+				-- strip dos line endings
+				line = line:gsub("\r", "")
+				-- strip ANSI color codes
+				line = line:gsub("\27%[[0-9;mK]+", "")
+				running_command.output_lines[#running_command.output_lines + 1] = line
 			end
 		end
 		return
@@ -49,21 +56,13 @@ local function on_event(job_id, data, event)
 
 	if event == "exit" then
 		local command = running_command.command
-		if command.errorformat then
-			vim.fn.setqflist({}, " ", {
-				title = command.cmd,
-				efm = command.errorformat,
-				lines = running_command.output_lines,
-			})
-			vim.api.nvim_command("doautocmd QuickFixCmdPost")
-		end
 
 		if data == 0 then
 			local title = "NeoDo: " .. command.name
 			if should_notify(command) then
 				notify.info("SUCCESS", title)
 			end
-			handle_terminal_and_qf(command, running_command)
+			terminal_on_success(command, running_command)
 			if command.on_success then
 				command.on_success(projects[running_command.project_hash])
 			end
@@ -71,15 +70,22 @@ local function on_event(job_id, data, event)
 			if data == 130 then
 				local text = "NeoDo: " .. command.name
 				notify.warning("Interrupted (SIGINT)", text)
-				handle_terminal_and_qf(command, running_command)
+				terminal_on_success(command, running_command)
 			else
+				if command.errorformat then
+					vim.fn.setqflist({}, " ", {
+						title = command.cmd,
+						efm = command.errorformat,
+						lines = running_command.output_lines,
+					})
+				else
+					vim.fn.setqflist(running_command.output_lines, "r")
+				end
+				vim.api.nvim_command("doautocmd QuickFixCmdPost")
+
 				local title = "NeoDo: " .. command.name
 				notify.error("FAILED with: " .. data, title)
-				if global_settings.qf_open_on_error and command.errorformat then
-					vim.api.nvim_command("copen")
-				end
-			end
-			if global_settings.qf_open_on_stop and command.errorformat then
+				terminal_on_fail(command, running_command)
 				vim.api.nvim_command("copen")
 			end
 		end
@@ -171,9 +177,6 @@ local function start_background_command(command, project)
 		local text = "NeoDo: " .. command.name
 		notify.info(cmd, text)
 	end
-	if global_settings.qf_open_on_start then
-		vim.api.nvim_command("copen")
-	end
 end
 
 local function start_terminal_command(command, project)
@@ -249,9 +252,7 @@ local function run_project_command(command, project)
 		return false
 	end
 
-	if global_settings.qf_close_on_start then
-		vim.api.nvim_command("cclose")
-	end
+	vim.api.nvim_command("cclose")
 
 	if command.type == "function" then
 		start_function_command(command, project)
