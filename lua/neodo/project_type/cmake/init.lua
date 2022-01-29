@@ -83,7 +83,7 @@ local function delete_profile(profile_key, project)
 end
 
 local function create_profile(_, project)
-	vim.ui.input({ prompt = "Provide new profile name: ", default = "Debug" }, function(input)
+	vim.ui.input({ prompt = "Provide new profile name: ", default = "Debug", kind='center'}, function(input)
 		local profile = {}
 		profile.name = input
 		if not profile.name then
@@ -95,6 +95,7 @@ local function create_profile(_, project)
 		vim.ui.input({
 			prompt = "Provide CMake params: ",
 			default = "-DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug",
+            kind = 'center'
 		}, function(params)
 			profile.cmake_params = params
 			profile.configured = false
