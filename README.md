@@ -19,6 +19,7 @@ Neodo can do:
 
 ### Installation
 
+
 Using `packer`:
 
 ```lua
@@ -29,6 +30,7 @@ use {
 ```
 
 ### Configuration
+
 
 The `setup()` function must be called to properly initialize plugin.
 User can pass config paramters to this function to change default behavior of plugin or to add project type specific bindings.
@@ -60,7 +62,8 @@ require'neodo'.setup({
 
 ### Definition of new project type
 
-For example to add support for `Javascript` project type just create definition of javascrip project type with all needed commands specified:
+For example to add support for `Javascript` project type just create definition of javascript project type with all needed commands specified:
+
 
 ```lua
 
