@@ -25,7 +25,7 @@ function M.get_project_config_and_datapath(project_path)
     local out_source_dp = get_out_of_source_project_data_path(project_path)
     local out_source_config = fs.join_path(out_source_dp, config_file_name)
     if fs.file_exists(out_source_config) then
-        return out_source_dp, out_source_config
+        return out_source_config, out_source_dp
     end
 
     if fs.dir_exists(in_source_dp) then
