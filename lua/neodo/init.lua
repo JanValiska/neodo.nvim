@@ -216,6 +216,17 @@ function M.has_config()
 	return false
 end
 
+M.has_project = function()
+    local buf = vim.api.nvim_win_get_buf(0)
+    if vim.api.nvim_buf_is_loaded(buf) then
+        local hash = utils.get_buf_variable(buf, "neodo_project_hash")
+        if hash ~= nil then
+            return true
+        end
+    end
+    return false
+end
+
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
 	runner.run(command_key)
@@ -315,6 +326,10 @@ function M.edit_project_settings()
 	end
 end
 
+function M.info()
+    require'neodo.info'.show()
+end
+
 local function register_built_in_project_types()
 	require("neodo.project_type.mongoose").register()
 	require("neodo.project_type.cmake").register()
@@ -385,6 +400,13 @@ function M.setup(config)
 	vim.api.nvim_exec(
 		[[
     command! NeodoEditProjectSettings call luaeval("require'neodo'.edit_project_settings()")
+    ]],
+		false
+	)
+
+	vim.api.nvim_exec(
+		[[
+    command! NeodoInfo call luaeval("require'neodo'.info()")
     ]],
 		false
 	)

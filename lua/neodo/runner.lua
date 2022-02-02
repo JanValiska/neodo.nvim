@@ -74,15 +74,16 @@ local function on_event(job_id, data, event)
 			else
 				local title = "NeoDo: " .. command.name
 				notify.error("FAILED with: " .. data, title)
+
 				terminal_on_fail(command, running_command)
                 vim.fn.setqflist({}, " ", {
                     title = command.cmd,
-                    efm = command.errorformat,
+                    efm = command.errorformat or '%m',
                     lines = running_command.output_lines,
                 })
 				vim.api.nvim_command("copen")
                 vim.cmd('wincmd p')
-                vim.cmd('stopinsert')
+                -- vim.cmd('stopinsert')
 			end
 		end
 
