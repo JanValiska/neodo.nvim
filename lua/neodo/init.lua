@@ -62,15 +62,15 @@ local function call_on_attach(project)
 	end
 end
 
-local function load_project(dir, type)
-	local hash = configuration.project_hash(dir)
+local function load_project(path, type)
+	local hash = configuration.project_hash(path)
 
 	if global_settings.load_project_notify then
-		notify.info(dir, "NeoDo: Loading project")
+		notify.info(path, "NeoDo: Loading project")
 	end
 
 	-- Check if config file and datapath exists
-	local config_file, data_path = configuration.get_project_config_and_datapath(dir)
+	local config_file, data_path = configuration.get_project_config_and_datapath(path)
 
 	-- load project
 	local project = {}
@@ -89,7 +89,7 @@ local function load_project(dir, type)
 		end
 	end
 
-	project.path = dir
+	project.path = path
 	project.type = type
 	project.hash = hash
 	project.data_path = data_path
@@ -129,17 +129,17 @@ end
 -- called when project root is detected
 local function on_project_dir_detected(p, bufnr)
 	-- p.dir is nil when no root is detected
-	if p.dir == nil then
+	if p.path == nil then
 		return
 	end
 
 	-- change root
-	change_root(p.dir)
+	change_root(p.path)
 
 	-- return already loaded project
-	local project = projects[configuration.project_hash(p.dir)]
+	local project = projects[configuration.project_hash(p.path)]
 	if project == nil then
-		project = load_project(p.dir, p.type)
+		project = load_project(p.path, p.type)
 	end
 
 	-- mark current buffer that it belongs to project
@@ -156,6 +156,32 @@ end
 function M.config_file_written()
 	local config = vim.fn.expand(vim.fn.expand("%:p"))
 	config_changed(config)
+end
+
+local function find_project()
+	local basepath = vim.fn.expand("%:p:h")
+
+	if basepath == nil then
+		return
+	end
+
+	-- replace double // separators
+	basepath = basepath:gsub("//", "/")
+
+	local bufnr = vim.api.nvim_get_current_buf()
+	for _, project in pairs(projects) do
+		if string.find(basepath, project.path) then
+			local p = {
+				path = project.path,
+				type = project.type,
+			}
+			on_project_dir_detected(p, bufnr)
+		end
+	end
+
+	root.find_project(basepath, function(p)
+		on_project_dir_detected(p, bufnr)
+	end)
 end
 
 -- called when the buffer is entered first time
@@ -181,19 +207,7 @@ function M.buffer_entered()
 	if already_loaded() then
 		change_root(projects[vim.b.neodo_project_hash].path)
 	else
-		local basepath = vim.fn.expand("%:p:h")
-
-		if basepath == nil then
-			return
-		end
-
-		-- replace double // separators
-		basepath = basepath:gsub("//", "/")
-
-		local bufnr = vim.api.nvim_get_current_buf()
-		root.find_project(basepath, function(p)
-			on_project_dir_detected(p, bufnr)
-		end)
+		find_project()
 	end
 end
 
@@ -207,9 +221,9 @@ function M.has_config()
 		local hash = utils.get_buf_variable(buf, "neodo_project_hash")
 		if hash ~= nil then
 			local project = projects[hash]
-            if project == nil then
-                return false
-            end
+			if project == nil then
+				return false
+			end
 			return project.config_file ~= nil
 		end
 	end
@@ -217,14 +231,14 @@ function M.has_config()
 end
 
 M.has_project = function()
-    local buf = vim.api.nvim_win_get_buf(0)
-    if vim.api.nvim_buf_is_loaded(buf) then
-        local hash = utils.get_buf_variable(buf, "neodo_project_hash")
-        if hash ~= nil then
-            return true
-        end
-    end
-    return false
+	local buf = vim.api.nvim_win_get_buf(0)
+	if vim.api.nvim_buf_is_loaded(buf) then
+		local hash = utils.get_buf_variable(buf, "neodo_project_hash")
+		if hash ~= nil then
+			return true
+		end
+	end
+	return false
 end
 
 -- called by user code to execute command with given key for current buffer
@@ -233,7 +247,7 @@ function M.run(command_key)
 end
 
 function M.run_last()
-    runner.run_last()
+	runner.run_last()
 end
 
 function M.get_command_params(command_key)
@@ -327,7 +341,7 @@ function M.edit_project_settings()
 end
 
 function M.info()
-    require'neodo.info'.show()
+	require("neodo.info").show()
 end
 
 local function register_built_in_project_types()
