@@ -7,6 +7,7 @@ local base_reply_dir = fs.join_path(base_api_dir, "reply")
 local base_codemodel_file = "codemodel-v2"
 
 local CodeModel = {
+    build_dir = nil,
 	query_dir = nil,
 	reply_dir = nil,
     targets = {}
@@ -52,7 +53,7 @@ function CodeModel:parse_target_model(model)
     end
     local paths = {}
     for _, a in ipairs(model.artifacts) do
-        table.insert(paths, vim.fn.fnamemodify(a.path, ":p"))
+        table.insert(paths, fs.join_path(self.build_dir, a.path))
     end
     self.targets[model.name] = { name = model.name, type = model.type, paths = paths }
 end
@@ -80,6 +81,7 @@ end
 
 function CodeModel:new(build_dir)
 	local o = {
+        build_dir = build_dir,
 		query_dir = fs.join_path(build_dir, base_query_dir),
 		reply_dir = fs.join_path(build_dir, base_reply_dir),
 	}

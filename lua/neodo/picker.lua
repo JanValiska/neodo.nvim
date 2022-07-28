@@ -8,7 +8,7 @@ function M.pick_command()
     local project = projects[vim.b.neodo_project_hash]
     local results = runner.get_enabled_commands_keys(project)
     if #results ~= 0 then
-        vim.ui.select(results, {prompt = "Select project command"}, function(selection)
+        vim.ui.select(results, {prompt = "Select project command", kind="neodo.select"}, function(selection)
             if selection == nil then
                 return
             end
@@ -20,7 +20,7 @@ function M.pick_command()
 end
 
 function M.pick(title, items, on_select)
-    vim.ui.select(items, {prompt = title}, function(selection)
+    vim.ui.select(items, {prompt = title, kind='neodo.select'}, function(selection)
         if selection == nil then
             return
         end
