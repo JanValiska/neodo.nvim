@@ -4,23 +4,8 @@ local fs = require("neodo.file")
 local picker = require("neodo.picker")
 local code_model = require("neodo.project_type.cmake.code_model")
 local config = require("neodo.project_type.cmake.config")
+local functions = require('neodo.project_type.cmake.functions')
 
-function M.get_selected_profile(project)
-    local profile_key = project.config.selected_profile
-    if not profile_key then
-        return nil
-    end
-    return project.config.profiles[profile_key]
-end
-
-function M.switch_compile_commands(profile)
-    if profile.configured then
-        if fs.file_exists("compile_commands.json") then
-            fs.delete("compile_commands.json")
-        end
-        fs.symlink(profile.build_dir .. "/compile_commands.json", "compile_commands.json")
-    end
-end
 
 function M.create_profile(_, project)
     vim.ui.input({ prompt = "Provide new profile name: ", default = "Debug", kind = 'neodo.input.center' },
@@ -54,7 +39,7 @@ function M.select_profile(_, project)
         project.config.selected_profile = profile_key
         project.config.selected_target = nil
         local profile = project.config.profiles[profile_key]
-        M.switch_compile_commands(profile)
+        functions.switch_compile_commands(profile)
         config.save(project)
     end)
     return { type = "success" }
@@ -90,7 +75,7 @@ function M.select_target(_, project)
 end
 
 function M.select_target_enabled(_, project)
-    local profile = M.get_selected_profile(project)
+    local profile = functions.get_selected_profile(project)
     if not profile then
         return false
     end
@@ -104,7 +89,7 @@ function M.clean(_, project)
 end
 
 function M.clean_enabled(_, project)
-    local profile = M.get_selected_profile(project)
+    local profile = functions.get_selected_profile(project)
     if not profile then
         return false
     end
@@ -118,7 +103,7 @@ function M.build_all(_, project)
 end
 
 function M.build_all_enabled(_, project)
-    local profile = M.get_selected_profile(project)
+    local profile = functions.get_selected_profile(project)
     if profile == nil then
         return false
     end
@@ -126,7 +111,7 @@ function M.build_all_enabled(_, project)
 end
 
 function M.configure(_, project)
-    local profile = M.get_selected_profile(project)
+    local profile = functions.get_selected_profile(project)
     if profile == nil then
         return { type = "error", text = "Cannot find profile" }
     end
@@ -140,7 +125,7 @@ end
 
 function M.configure_enabled(_, project)
     local function conan_installed()
-        local profile = M.get_selected_profile(project)
+        local profile = functions.get_selected_profile(project)
         if profile == nil then
             return false
         end
@@ -154,11 +139,11 @@ function M.configure_enabled(_, project)
 end
 
 function M.configure_on_success(project)
-    local profile = M.get_selected_profile(project)
+    local profile = functions.get_selected_profile(project)
     local profile_key = project.config.selected_profile
     project.code_models[profile_key]:read_reply()
     profile.configured = true
-    M.switch_compile_commands(profile)
+    functions.switch_compile_commands(profile)
     config.save(project)
 end
 

@@ -4,22 +4,16 @@ local fs = require("neodo.file")
 local code_model = require("neodo.project_type.cmake.code_model")
 local notify = require("neodo.notify")
 local cmake_config_file_name = "neodo_cmake_config.json"
+local functions = require('neodo.project_type.cmake.functions')
 
 function M.load(project)
     if not project.data_path then
         return
     end
     local config_file = project.data_path .. "/" .. cmake_config_file_name
-    fs.file_exists("compile_commands.json")
-    local function load_conan()
-        project.config.has_conan = fs.file_exists("conanfile.txt")
-    end
 
     fs.read(config_file, 438, function(err, data)
-        if err then
-            load_conan()
-            return
-        else
+        if not err then
             local config = vim.fn.json_decode(data)
             project.config = config
             for key, profile in pairs(project.config.profiles) do
@@ -30,9 +24,16 @@ function M.load(project)
             for _, cm in pairs(project.code_models) do
                 cm:read_reply()
             end
-            load_conan()
+
+            -- switch compile_functions to selected profile
+            local selected_profile = functions.get_selected_profile(project)
+            if selected_profile then
+                functions.switch_compile_commands(selected_profile)
+            end
         end
     end)
+
+    project.config.has_conan = fs.file_exists("conanfile.txt")
 end
 
 function M.save(project)
