@@ -1,6 +1,6 @@
 local M = {}
 
-local delimiter = '/';
+M.separator = '/';
 
 local uv = vim.loop
 
@@ -72,7 +72,7 @@ end
 function M.join_path(first, ...)
     local p = first
     for _, value in ipairs({...}) do
-        p = p .. delimiter .. value
+        p = p .. M.separator .. value
     end
     return p;
 end
@@ -94,7 +94,7 @@ local function rmdir(path)
         while true do
             local item = uv.fs_scandir_next(handle)
             if item ~= nil then
-                local p = path .. delimiter .. item
+                local p = path .. M.separator .. item
                 rmdir(p)
             else
                 goto empty
@@ -139,7 +139,7 @@ local function create_directories_from_table(t, root)
 end
 
 function M.create_directories(dir)
-    local dirs = split(dir, delimiter)
+    local dirs = split(dir, M.separator)
     create_directories_from_table(dirs, starts_by_root(dir))
 end
 

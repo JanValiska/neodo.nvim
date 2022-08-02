@@ -4,11 +4,21 @@ local neodo_folder = '.neodo'
 local dp = vim.fn.stdpath("data")
 local base_data_path = dp .. '/neodo'
 local fs = require 'neodo.file'
+local settings = require'neodo.settings'
 
 function M.project_hash(project_path) return vim.fn.sha256(project_path) end
 
+local function make_percent_path(path)
+    if string.sub(path, 1, 1) == fs.separator then
+        path = path:sub(2)
+    end
+    print(vim.inspect(path))
+    local p = path:gsub(fs.separator, "-")
+    return p
+end
+
 local function get_out_of_source_project_data_path(project_path)
-    return fs.join_path(base_data_path, M.project_hash(project_path))
+    return fs.join_path(base_data_path, make_percent_path(project_path))
 end
 
 local function get_in_the_source_project_data_path(project_path)
@@ -55,12 +65,14 @@ local function create_config_file(data_path, callback)
         fs.create_directories(data_path)
     end
     local config_file = fs.join_path(data_path, config_file_name)
+    print(vim.inspect(config_file))
     write_template(config_file, template, function(err)
-            if err then
-                print("Cannot create config file: " .. config_file)
-            else
-                callback(config_file, data_path)
-            end
+        if err then
+            print("Cannot create config file: " .. config_file)
+            callback(nil, nil)
+        else
+            callback(config_file, data_path)
+        end
     end)
 end
 
@@ -72,6 +84,26 @@ end
 function M.create_in_the_source_config_file(project_path, callback)
     local data_path = get_in_the_source_project_data_path(project_path)
     create_config_file(data_path, callback)
+end
+
+function M.ensure_config_file_and_data_path(project, callback)
+    local f = M.create_out_of_source_config_file
+    if settings.use_in_the_source_config then
+        f = M.create_in_the_source_config_file
+    end
+
+    f(project.path, function(config, data_path)
+        if not config or not data_path then
+            callback(nil)
+        end
+        if config then
+            project.config_file = config
+            callback(config)
+        end
+        if data_path then
+            project.data_path = data_path
+        end
+    end)
 end
 
 return M

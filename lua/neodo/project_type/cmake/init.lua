@@ -15,7 +15,7 @@ M.register = function()
         user_on_attach = nil,
         buffer_on_attach = nil,
         user_buffer_on_attach = nil,
-        config = { selected_target = nil, selected_profile = nil, profiles = {} },
+        config = { selected_target = nil, selected_profile = nil, profiles = {}, build_configurations = nil },
         code_models = {},
         commands = {
             create_profile = {

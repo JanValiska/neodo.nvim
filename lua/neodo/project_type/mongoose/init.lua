@@ -3,6 +3,7 @@ local M = {}
 local utils = require 'neodo.utils'
 local settings = require 'neodo.settings'
 local compilers = require("neodo.compilers")
+local notify = require("neodo.notify")
 
 function M.build_cmd(params, _)
     local cmd = {'mos build'}
@@ -11,7 +12,8 @@ function M.build_cmd(params, _)
 
     -- Check platform param
     if params.platform == nil then
-        return {type = 'error', text = 'Platform not specified'}
+        notify.error('Parameter --platform missing', "Mongoose OS")
+        return nil
     else
         table.insert(cmd, "--platform " .. params.platform)
     end
@@ -22,7 +24,7 @@ function M.build_cmd(params, _)
 
     if params.port then table.insert(cmd, "--port " .. params.port) end
 
-    return {type = 'success', text = utils.tbl_join(cmd, ' ')}
+    return utils.tbl_join(cmd, ' ')
 end
 
 M.build_params = {platform = "esp32", local_build = true, verbose = false}
@@ -37,7 +39,7 @@ function M.flash_cmd(params, _)
         if params.port then table.insert(cmd, "--port " .. params.port) end
     end
 
-    return {type = 'success', text = utils.tbl_join(cmd, ' ')}
+    return utils.tbl_join(cmd, ' ')
 end
 
 M.register = function()

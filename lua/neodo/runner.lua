@@ -1,7 +1,6 @@
 local M = {}
 
 local global_settings = require("neodo.settings")
-local utils = require("neodo.utils")
 local notify = require("neodo.notify")
 local log = require("neodo.log")
 local projects = require("neodo.projects")
@@ -12,9 +11,9 @@ local os = require("os")
 local commands = {}
 
 local function find_command_by_job_id(job_id)
-	for uuid, command in pairs(commands) do
+	for cuuid, command in pairs(commands) do
 		if command.job_id == job_id then
-			return uuid, command
+			return cuuid, command
 		end
 	end
 end
@@ -92,7 +91,6 @@ local function on_event(job_id, data, event)
 end
 
 local function get_cmd_string(command, project)
-	local cmd = nil
 	if type(command.cmd) == "function" then
 		local params = {}
 		if command.params and type(command.params) == "function" then
@@ -101,17 +99,14 @@ local function get_cmd_string(command, project)
 			params = command.params
 		end
 		local result = command.cmd(params, project)
-		if result.type == "success" then
-			cmd = result.text
-		end
-		if result.type == "error" then
-			notify.error(result.text, "Neodo: " .. command.name)
-			return nil
-		end
+		if result ~= nil then
+            return result
+        end
 	else
-		cmd = vim.fn.expandcmd(command.cmd)
+		return vim.fn.expandcmd(command.cmd)
 	end
-	return cmd
+    notify.error("Cannot run command: "..command.name, "Neodo")
+	return nil
 end
 
 local function start_function_command(command, project)
@@ -123,7 +118,7 @@ local function start_function_command(command, project)
 	end
 	local title = "NeoDo: " .. command.name
 	if should_notify(command) then
-		notify.info("Invoking", title)
+		notify.info("INVOKING", title)
 	end
 	local fuuid = uuid()
 	commands[fuuid] = {
@@ -132,27 +127,22 @@ local function start_function_command(command, project)
 		project_hash = project.hash,
 	}
 	vim.schedule(function()
-		local result = command.cmd(params, project)
-		if result == nil then
-			result = { type = "success" }
-		end
-		if result.type == "success" then
-			if should_notify(command) then
-				notify.info("SUCCESS", title)
-			end
-			if command.on_success and type(command.on_success) == "function" then
-				command.on_success(project)
-			end
-		end
-		if result.type == "error" then
-			notify.error(result.text, title)
-		end
+		command.cmd(params, project)
+        if should_notify(command) then
+            notify.info("DONE", title)
+        end
+        if command.on_success and type(command.on_success) == "function" then
+            command.on_success(project)
+        end
 		commands[fuuid] = nil
 	end)
 end
 
 local function start_background_command(command, project)
 	local cmd = get_cmd_string(command, project)
+    if cmd == nil then
+        return
+    end
 	local job_id = vim.fn.jobstart(cmd, {
 		on_stderr = on_event,
 		on_stdout = on_event,
@@ -180,7 +170,6 @@ local function start_terminal_command(command, project)
 	-- run the command
 	local cmd = get_cmd_string(command, project)
 	if cmd == nil then
-		log("Cannot create command")
 		return
 	end
 

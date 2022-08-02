@@ -6,32 +6,40 @@ local code_model = require("neodo.project_type.cmake.code_model")
 local config = require("neodo.project_type.cmake.config")
 local functions = require('neodo.project_type.cmake.functions')
 
-
 function M.create_profile(_, project)
-    vim.ui.input({ prompt = "Provide new profile name: ", default = "Debug", kind = 'neodo.input.center' },
-        function(input)
-            local profile = {}
-            profile.name = input
-            if not profile.name then
-                return
+    picker.pick("Select build type: ", { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' }, function(build_type)
+        local function create_profile(build_configuration)
+            local profile_key = build_type
+            local profile = {
+                name = build_type,
+                cmake_params = "-DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=" .. build_type,
+                env_vars = "",
+                configured = false,
+            }
+            if build_configuration then
+                profile.cmake_params = profile.cmake_params .. ' ' .. build_configuration.cmake_params
+                profile.name = profile.name .. '-' .. build_configuration.name
+                profile.env_vars = profile.env_vars .. ' ' .. build_configuration.env_vars
+                profile_key = profile_key .. '-' .. string.gsub(build_configuration.name, "%s+", "-")
             end
-            local profile_key = string.gsub(profile.name, "%s+", "-")
             profile.build_dir = "build-" .. profile_key
             fs.mkdir(profile.build_dir)
-            vim.ui.input({
-                prompt = "Provide CMake params: ",
-                default = "-DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug",
-                kind = 'neodo.input.center'
-            }, function(params)
-                profile.cmake_params = params
-                profile.configured = false
-                project.config.profiles[profile_key] = profile
-                M.select_profile(profile_key, project)
-                project.config.selected_target = nil
-                config.save(project)
-            end)
-        end)
-    return { type = "success" }
+            project.config.profiles[profile_key] = profile
+            M.select_profile(profile_key, project)
+            project.config.selected_target = nil
+            config.save(project)
+        end
+
+        if project.config.build_configurations then
+            picker.pick("Select build configuration:", vim.tbl_keys(project.config.build_configurations),
+                function(bc_key)
+                    local build_configuration = project.config.build_configurations[bc_key]
+                    create_profile(build_configuration)
+                end)
+        else
+            create_profile(nil)
+        end
+    end)
 end
 
 function M.select_profile(_, project)
@@ -42,7 +50,6 @@ function M.select_profile(_, project)
         functions.switch_compile_commands(profile)
         config.save(project)
     end)
-    return { type = "success" }
 end
 
 function M.select_profile_enabled(_, project)
@@ -58,7 +65,6 @@ function M.delete_profile(_, project)
         project.config.selected_profile = nil
         config.save(project)
     end)
-    return { type = "success" }
 end
 
 function M.delete_profile_enabled(_, project)
@@ -71,7 +77,6 @@ function M.select_target(_, project)
         project.config.selected_target = selection
         config.save(project)
     end)
-    return { type = "success" }
 end
 
 function M.select_target_enabled(_, project)
@@ -84,8 +89,7 @@ end
 
 function M.clean(_, project)
     local profile = project.config.profiles[project.config.selected_profile]
-    local cmd = "cmake --build " .. profile.build_dir .. " --target clean"
-    return { type = "success", text = cmd }
+    return "cmake --build " .. profile.build_dir .. " --target clean"
 end
 
 function M.clean_enabled(_, project)
@@ -98,8 +102,7 @@ end
 
 function M.build_all(_, project)
     local profile = project.config.profiles[project.config.selected_profile]
-    local cmd = "cmake --build " .. profile.build_dir
-    return { type = "success", text = cmd }
+    return "cmake --build " .. profile.build_dir
 end
 
 function M.build_all_enabled(_, project)
@@ -112,15 +115,10 @@ end
 
 function M.configure(_, project)
     local profile = functions.get_selected_profile(project)
-    if profile == nil then
-        return { type = "error", text = "Cannot find profile" }
-    end
     local profile_key = project.config.selected_profile
     project.code_models[profile_key] = code_model:new(profile.build_dir)
     project.code_models[profile_key]:write_query()
-    local cmd = ""
-    cmd = cmd .. "cmake -B " .. profile.build_dir .. " " .. profile.cmake_params
-    return { type = "success", text = cmd }
+    return "cmake -B " .. profile.build_dir .. " " .. profile.cmake_params
 end
 
 function M.configure_enabled(_, project)
@@ -148,17 +146,8 @@ function M.configure_on_success(project)
 end
 
 function M.build_selected_target(_, project)
-    if project.config.selected_target == nil then
-        return { type = "error", text = "No target selected" }
-    end
-
     local profile = project.config.profiles[project.config.selected_profile]
-    local cmd = "cmake --build " .. profile.build_dir .. " --target " .. project.config.selected_target
-
-    return {
-        type = "success",
-        text = cmd,
-    }
+    return "cmake --build " .. profile.build_dir .. " --target " .. project.config.selected_target
 end
 
 function M.build_selected_target_enabled(_, project)
@@ -167,7 +156,7 @@ end
 
 function M.run_selected_target(_, project)
     local target = M.get_targets(project)[project.config.selected_target]
-    return { type = "success", text = target.paths[1] }
+    return target.paths[1]
 end
 
 function M.run_selected_target_enabled(_, project)
@@ -177,8 +166,7 @@ end
 
 function M.conan_install(_, project)
     local profile = project.config.profiles[project.config.selected_profile]
-    local cmd = "conan install --build=missing -if " .. profile.build_dir .. " ."
-    return { type = "success", text = cmd }
+    return "conan install --build=missing -if " .. profile.build_dir .. " ."
 end
 
 function M.conan_install_enabled(_, project)
