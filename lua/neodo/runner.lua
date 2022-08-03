@@ -32,7 +32,7 @@ local function close_terminal_on_success(command, job)
 end
 
 local function close_terminal_on_fail(command, job)
-    if command.cmd and not command.background and global_settings.terminal_close_on_error then
+    if command.cmd and not command.background and command.errorformat and global_settings.terminal_close_on_error then
         vim.api.nvim_buf_delete(job.buf_id, {})
     end
 end
@@ -72,14 +72,15 @@ local function on_event(job_id, data, event)
                 notify.error("FAILED with: " .. data, command.name)
 
                 close_terminal_on_fail(command, command_context)
-                vim.fn.setqflist({}, " ", {
-                    title = command.cmd,
-                    efm = command.errorformat or '%m',
-                    lines = command_context.output_lines,
-                })
-                vim.api.nvim_command("copen")
-                vim.cmd('wincmd p')
-                -- vim.cmd('stopinsert')
+                if command.errorformat then
+                    vim.fn.setqflist({}, " ", {
+                        title = command.cmd,
+                        efm = command.errorformat or '%m',
+                        lines = command_context.output_lines,
+                    })
+                    vim.api.nvim_command("copen")
+                    vim.cmd('wincmd p')
+                end
             end
         end
 
@@ -166,7 +167,12 @@ local function start_cmd(command, project)
             vim.wo.relativenumber = false
             command_context.buf_id = vim.fn.bufnr()
             vim.api.nvim_buf_set_option(command_context.buf_id, "buflisted", false)
-            -- vim.api.nvim_command("autocmd! BufWinEnter,WinEnter term://* startinsert")
+            vim.api.nvim_create_autocmd({"BufEnter", "BufWinEnter"}, {
+                buffer = command_context.buf_id,
+                callback = function()
+                    vim.api.nvim_command("starti")
+                end
+            })
             vim.schedule(function()
                 vim.api.nvim_command("starti")
             end)
