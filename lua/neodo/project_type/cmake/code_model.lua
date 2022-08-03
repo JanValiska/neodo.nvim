@@ -27,7 +27,7 @@ function CodeModel:load_model_file(path, callback)
 	local full_path = fs.join_path(self.reply_dir, path)
 	fs.read(full_path, 438, function(err, data)
 		if err then
-			log("Cannot read code model file: " .. path)
+			log.error("Cannot read code model file: " .. path)
 			return
 		else
 			local model = vim.fn.json_decode(data)

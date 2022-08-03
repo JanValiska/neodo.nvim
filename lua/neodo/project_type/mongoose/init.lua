@@ -3,16 +3,16 @@ local M = {}
 local utils = require 'neodo.utils'
 local settings = require 'neodo.settings'
 local compilers = require("neodo.compilers")
-local notify = require("neodo.notify")
+local log = require("neodo.log")
 
 function M.build_cmd(params, _)
-    local cmd = {'mos build'}
+    local cmd = { 'mos build' }
 
-    if not params then return {type = 'error', text = 'Params not found'} end
+    if not params then return { type = 'error', text = 'Params not found' } end
 
     -- Check platform param
     if params.platform == nil then
-        notify.error('Parameter --platform missing', "Mongoose OS")
+        log.error("Parameter '--platform' missing", "Mongoose OS")
         return nil
     else
         table.insert(cmd, "--platform " .. params.platform)
@@ -27,13 +27,13 @@ function M.build_cmd(params, _)
     return utils.tbl_join(cmd, ' ')
 end
 
-M.build_params = {platform = "esp32", local_build = true, verbose = false}
+M.build_params = { platform = "esp32", local_build = true, verbose = false }
 
 M.build_errorformat = compilers.get_errorformat('gcc')
 
 
 function M.flash_cmd(params, _)
-    local cmd = {'mos flash'}
+    local cmd = { 'mos flash' }
 
     if params ~= nil then
         if params.port then table.insert(cmd, "--port " .. params.port) end
@@ -47,15 +47,14 @@ M.register = function()
         name = "Mongoose OS",
         commands = {
             build = {
-                type = 'terminal',
                 name = "Build",
                 cmd = M.build_cmd,
                 params = M.build_params,
                 errorformat = M.build_errorformat
             },
-            flash = {type = 'terminal', name = "Flash", cmd = M.flash_cmd}
+            flash = { name = "Flash", cmd = M.flash_cmd }
         },
-        patterns = {'mos.yml'},
+        patterns = { 'mos.yml' },
         on_attach = nil,
         buffer_on_attach = nil,
         user_buffer_on_attach = nil,

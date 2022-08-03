@@ -15,7 +15,7 @@ function M.pick_command()
             runner.run(selection)
         end)
     else
-        log("No commands defined for current project")
+        log.warning("No commands defined for current project")
     end
 end
 

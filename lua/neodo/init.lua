@@ -74,7 +74,7 @@ local function load_project(path, type)
     local hash = configuration.project_hash(path)
 
     if global_settings.load_project_notify then
-        notify.info(path, "NeoDo: Loading project")
+        notify.info(path, "Loading project")
     end
 
     -- Check if config file and datapath exists
@@ -262,14 +262,14 @@ end
 
 function M.get_command_params(command_key)
     if vim.b.neodo_project_hash == nil then
-        log("Buffer not attached to any project")
+        log.warning("Buffer not attached to any project")
         return
     end
 
     local project = projects[vim.b.neodo_project_hash]
     local command = project.commands[command_key]
     if command == nil then
-        log("Unknown command '" .. command_key .. "'")
+        log.warning("Unknown command '" .. command_key .. "'")
         return nil
     else
         return command.params
@@ -278,7 +278,7 @@ end
 
 function M.neodo()
     if vim.b.neodo_project_hash == nil then
-        log("Buffer not attached to any project")
+        log.warning("Buffer not attached to any project")
         return
     else
         picker.pick_command()
@@ -306,7 +306,7 @@ function M.edit_project_settings()
     local project_hash = vim.b.neodo_project_hash
 
     if project_hash == nil then
-        log("Cannot edit project settings. Current buffer is not part of project.")
+        log.warning("Cannot edit project settings. Current buffer is not part of project.")
         return
     end
 
@@ -319,7 +319,7 @@ function M.edit_project_settings()
             if res then
                 vim.api.nvim_exec(":e " .. project.config_file, false)
             else
-                log("Cannot create config file")
+                log.error("Cannot create config file")
             end
         end)
     end

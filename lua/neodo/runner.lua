@@ -4,302 +4,278 @@ local global_settings = require("neodo.settings")
 local notify = require("neodo.notify")
 local log = require("neodo.log")
 local projects = require("neodo.projects")
-local uuid = require("neodo.uuid")
+local uuid_generator = require("neodo.uuid")
 local os = require("os")
 
 -- list of currently running jobs
-local commands = {}
+local command_contexts = {}
 
 local function find_command_by_job_id(job_id)
-	for cuuid, command in pairs(commands) do
-		if command.job_id == job_id then
-			return cuuid, command
-		end
-	end
+    for uuid, command_context in pairs(command_contexts) do
+        if command_context.job_id == job_id then
+            return uuid, command_context
+        end
+    end
 end
 
 local function should_notify(command)
-	if command.notify ~= nil then
-		return command.notify
-	end
-	return true
+    if command.notify ~= nil then
+        return command.notify
+    end
+    return true
 end
 
-local function terminal_on_success(command, job)
-	if not command.type or command.type == "terminal" and global_settings.terminal_close_on_success then
-		vim.api.nvim_buf_delete(job.buf_id, {})
-	end
+local function close_terminal_on_success(command, job)
+    if command.cmd and not command.background and global_settings.terminal_close_on_success then
+        vim.api.nvim_buf_delete(job.buf_id, {})
+    end
 end
 
-local function terminal_on_fail(command, job)
-	if not command.type or command.type == "terminal" and global_settings.terminal_close_on_error then
-		vim.api.nvim_buf_delete(job.buf_id, {})
-	end
+local function close_terminal_on_fail(command, job)
+    if command.cmd and not command.background and global_settings.terminal_close_on_error then
+        vim.api.nvim_buf_delete(job.buf_id, {})
+    end
 end
 
 local function on_event(job_id, data, event)
-	local cuuid, running_command = find_command_by_job_id(job_id)
+    local uuid, command_context = find_command_by_job_id(job_id)
 
-	if event == "stdout" or event == "stderr" then
-		if data then
-			for _, line in ipairs(data) do
-				-- strip dos line endings
-				line = line:gsub("\r", "")
-				-- strip ANSI color codes
-				line = line:gsub("\27%[[0-9;mK]+", "")
-				running_command.output_lines[#running_command.output_lines + 1] = line
-			end
-		end
-		return
-	end
+    if event == "stdout" or event == "stderr" then
+        if data then
+            for _, line in ipairs(data) do
+                -- strip dos line endings
+                line = line:gsub("\r", "")
+                -- strip ANSI color codes
+                line = line:gsub("\27%[[0-9;mK]+", "")
+                command_context.output_lines[#command_context.output_lines + 1] = line
+            end
+        end
+        return
+    end
 
-	if event == "exit" then
-		local command = running_command.command
+    if event == "exit" then
+        local command = command_context.command
 
-		if data == 0 then
-			local title = "NeoDo: " .. command.name
-			if should_notify(command) then
-				notify.info("SUCCESS", title)
-			end
-			terminal_on_success(command, running_command)
-			if command.on_success then
-				command.on_success(projects[running_command.project_hash])
-			end
-		else
-			if data == 130 then
-				local text = "NeoDo: " .. command.name
-				notify.warning("Interrupted (SIGINT)", text)
-				terminal_on_success(command, running_command)
-			else
-				local title = "NeoDo: " .. command.name
-				notify.error("FAILED with: " .. data, title)
+        if data == 0 then
+            if should_notify(command) then
+                notify.info("SUCCESS", command.name)
+            end
+            close_terminal_on_success(command, command_context)
+            if command.on_success then
+                command.on_success(projects[command_context.project_hash])
+            end
+        else
+            if data == 130 then
+                notify.warning("Interrupted (SIGINT)", command.name)
+                close_terminal_on_success(command, command_context)
+            else
+                notify.error("FAILED with: " .. data, command.name)
 
-				terminal_on_fail(command, running_command)
+                close_terminal_on_fail(command, command_context)
                 vim.fn.setqflist({}, " ", {
                     title = command.cmd,
                     efm = command.errorformat or '%m',
-                    lines = running_command.output_lines,
+                    lines = command_context.output_lines,
                 })
-				vim.api.nvim_command("copen")
+                vim.api.nvim_command("copen")
                 vim.cmd('wincmd p')
                 -- vim.cmd('stopinsert')
-			end
-		end
+            end
+        end
 
-		commands[cuuid] = nil
-	end
+        command_contexts[uuid] = nil
+    end
 end
 
 local function get_cmd_string(command, project)
-	if type(command.cmd) == "function" then
-		local params = {}
-		if command.params and type(command.params) == "function" then
-			params = command.params()
-		else
-			params = command.params
-		end
-		local result = command.cmd(params, project)
-		if result ~= nil then
+    if type(command.cmd) == "function" then
+        local params = {}
+        if command.params and type(command.params) == "function" then
+            params = command.params()
+        else
+            params = command.params
+        end
+        local result = command.cmd(params, project)
+        if result ~= nil then
             return result
         end
-	else
-		return vim.fn.expandcmd(command.cmd)
-	end
-    notify.error("Cannot run command: "..command.name, "Neodo")
-	return nil
+    else
+        return vim.fn.expandcmd(command.cmd)
+    end
+    return nil
 end
 
 local function start_function_command(command, project)
-	local params = {}
-	if command.params and type(command.params) == "function" then
-		params = command.params()
-	else
-		params = command.params
-	end
-	local title = "NeoDo: " .. command.name
-	if should_notify(command) then
-		notify.info("INVOKING", title)
-	end
-	local fuuid = uuid()
-	commands[fuuid] = {
-		started_at = os.time(),
-		command = command,
-		project_hash = project.hash,
-	}
-	vim.schedule(function()
-		command.cmd(params, project)
+    local params = {}
+    if command.params and type(command.params) == "function" then
+        params = command.params()
+    else
+        params = command.params
+    end
+    if should_notify(command) then
+        notify.info("INVOKING", command.name)
+    end
+    local fuuid = uuid_generator()
+    command_contexts[fuuid] = {
+        started_at = os.time(),
+        command = command,
+        project_hash = project.hash,
+    }
+    vim.schedule(function()
+        command.fn(params, project)
         if should_notify(command) then
-            notify.info("DONE", title)
+            notify.info("DONE", command.name)
         end
         if command.on_success and type(command.on_success) == "function" then
             command.on_success(project)
         end
-		commands[fuuid] = nil
-	end)
+        command_contexts[fuuid] = nil
+    end)
 end
 
-local function start_background_command(command, project)
-	local cmd = get_cmd_string(command, project)
+local function start_cmd(command, project)
+    local cmd = get_cmd_string(command, project)
     if cmd == nil then
-        return
+        log.error("Cannot run command, cmd incorrect")
+        return false
     end
-	local job_id = vim.fn.jobstart(cmd, {
-		on_stderr = on_event,
-		on_stdout = on_event,
-		on_exit = on_event,
-		stdout_buffered = false,
-		stderr_buffered = false,
-	})
 
-	commands[uuid()] = {
-		job_id = job_id,
-		started_at = os.time(),
-		command = command,
-		project_hash = project.hash,
-		buf_id = nil,
-		win_id = nil,
-		output_lines = {},
-	}
-	if should_notify(command) then
-		local text = "NeoDo: " .. command.name
-		notify.info(cmd, text)
-	end
-end
+    local opts = {
+        on_stderr = on_event,
+        on_stdout = on_event,
+        on_exit = on_event,
+        stdout_buffered = false,
+        stderr_buffered = false,
+    }
 
-local function start_terminal_command(command, project)
-	-- run the command
-	local cmd = get_cmd_string(command, project)
-	if cmd == nil then
-		return
-	end
+    local command_context = {
+        started_at = os.time(),
+        command = command,
+        project_hash = project.hash,
+        output_lines = {},
+    }
 
-	-- create the new buffer
-	vim.api.nvim_command("bot 15new")
-	local job_id = vim.fn.termopen(cmd, {
-		on_stderr = on_event,
-		on_stdout = on_event,
-		on_exit = on_event,
-		stdout_buffered = false,
-		stderr_buffered = false,
-	})
-	vim.wo.number = false
-	vim.wo.relativenumber = false
-	local buf_id = vim.fn.bufnr()
-	vim.api.nvim_buf_set_option(buf_id, "buflisted", false)
-	-- vim.api.nvim_command("autocmd! BufWinEnter,WinEnter term://* startinsert")
+    local executor = nil
+    if command.background then
+        executor = function() command_context.job_id = vim.fn.jobstart(cmd, opts) end
+    else
+        executor = function()
+            vim.api.nvim_command("bot 15new")
+            command_context.job_id = vim.fn.termopen(cmd, opts)
+            vim.wo.number = false
+            vim.wo.relativenumber = false
+            command_context.buf_id = vim.fn.bufnr()
+            vim.api.nvim_buf_set_option(command_context.buf_id, "buflisted", false)
+            -- vim.api.nvim_command("autocmd! BufWinEnter,WinEnter term://* startinsert")
+            vim.schedule(function()
+                vim.api.nvim_command("starti")
+            end)
+        end
+    end
 
-	commands[uuid()] = {
-		job_id = job_id,
-		started_at = os.time(),
-		command = command,
-		project_hash = project.hash,
-		buf_id = buf_id,
-		output_lines = {},
-	}
+    executor()
 
-	if should_notify(command) then
-		local text = "NeoDo: " .. command.name
-		notify.info(cmd, text)
-	end
-	vim.schedule(function()
-		vim.api.nvim_command("starti")
-	end)
+    command_contexts[uuid_generator()] = command_context
+
+    if should_notify(command) then
+        notify.info(cmd, command.name)
+    end
 end
 
 local function command_enabled(command, project)
-	if command.enabled and type(command.enabled) == "function" then
-		return command.enabled(command.params, project)
-	end
-	return true
+    if command.enabled and type(command.enabled) == "function" then
+        return command.enabled(command.params, project)
+    end
+    return true
 end
 
 local function command_still_running(command)
-	for _, running_command in pairs(commands) do
-		if running_command.command == command then
-			return true
-		end
-	end
-	return false
+    for _, running_command in pairs(command_contexts) do
+        if running_command.command == command then
+            return true
+        end
+    end
+    return false
 end
 
 local function run_project_command(command, project)
-	if command == nil then
-		log("Command not found")
-		return false
-	end
+    if command == nil then
+        log.warning("Command not found")
+        return false
+    end
 
-	if not command_enabled(command, project) then
-		log("Command disabled")
-		return false
-	end
+    if not command_enabled(command, project) then
+        log.warning("Command disabled")
+        return false
+    end
 
-	if command_still_running(command) then
-		log("Command already started")
-		return false
-	end
+    if command_still_running(command) then
+        log.warning("Command already started")
+        return false
+    end
 
-	vim.api.nvim_command("cclose")
+    vim.api.nvim_command("cclose")
 
-	if command.type == "function" then
-		start_function_command(command, project)
-	elseif command.type == "background" then
-		start_background_command(command, project)
-	else
-		start_terminal_command(command, project)
-	end
+    if command.fn then
+        start_function_command(command, project)
+    elseif command.cmd then
+        start_cmd(command, project)
+    else
+        log.error("No 'fn' or 'cmd' defined in given command")
+    end
 
-	return true
+    return true
 end
 
 function M.run(command_key)
-	if vim.b.neodo_project_hash == nil then
-		log("Buffer not attached to any project")
-		return
-	end
+    if vim.b.neodo_project_hash == nil then
+        log.warning("Buffer not attached to any project")
+        return
+    end
 
-	local project = projects[vim.b.neodo_project_hash]
-	local command = project.commands[command_key]
-	if run_project_command(command, project) then
-		project.last_command = command_key
-	end
+    local project = projects[vim.b.neodo_project_hash]
+    local command = project.commands[command_key]
+    if run_project_command(command, project) then
+        project.last_command = command_key
+    end
 end
 
 function M.run_last()
-	local hash = vim.b.neodo_project_hash
-	if hash == nil then
-		log("Buffer not attached to any project")
-		return
-	end
+    local hash = vim.b.neodo_project_hash
+    if hash == nil then
+        log.warning("Buffer not attached to any project")
+        return
+    end
 
-	local project = projects[vim.b.neodo_project_hash]
-	if not project.last_command then
-		log("No last command defined")
-		return
-	end
-	local command = project.commands[project.last_command]
-	run_project_command(command, project)
+    local project = projects[vim.b.neodo_project_hash]
+    if not project.last_command then
+        log.warning("No last command defined")
+        return
+    end
+    local command = project.commands[project.last_command]
+    run_project_command(command, project)
 end
 
 function M.get_enabled_commands_keys(project)
-	if project == nil or project.commands == nil then
-		return {}
-	end
+    if project == nil or project.commands == nil then
+        return {}
+    end
 
-	local keys = {}
-	for key, command in pairs(project.commands) do
-		if command_enabled(command, project) then
-			table.insert(keys, key)
-		end
-	end
-	return keys
+    local keys = {}
+    for key, command in pairs(project.commands) do
+        if command_enabled(command, project) then
+            table.insert(keys, key)
+        end
+    end
+    return keys
 end
 
 function M.get_jobs_count()
-	return vim.tbl_count(commands)
+    return vim.tbl_count(command_contexts)
 end
 
 function M.get_jobs()
-	return commands
+    return command_contexts
 end
 
 return M

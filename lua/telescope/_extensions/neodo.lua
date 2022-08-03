@@ -24,7 +24,7 @@ local function neodo_entry_point(opts)
     opts = opts or {}
 
     if vim.b.neodo_project_hash == nil then
-        log('Buffer not attached to any project')
+        log.warning('Buffer not attached to any project')
         return
     end
 
@@ -43,7 +43,7 @@ local function neodo_entry_point(opts)
             end
         }):find()
     else
-        log("No commands defined for current project")
+        log.warning("No commands defined for current project")
     end
 
 end
