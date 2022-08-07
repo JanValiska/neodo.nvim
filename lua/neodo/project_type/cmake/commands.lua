@@ -173,6 +173,15 @@ function M.conan_install_enabled(_, project)
     return project.config.has_conan and project.config.selected_profile
 end
 
+function M.show_cache_variables(_, project)
+    local profile = functions.get_selected_profile(project)
+    return "cmake -B " .. profile.build_dir .. " -L"
+end
+
+function M.show_cache_variables_enabled(_, project)
+    return project.config.selected_profile ~= nil
+end
+
 function M.get_targets(project)
     local profile_key = project.config.selected_profile
     local cm = project.code_models[profile_key]

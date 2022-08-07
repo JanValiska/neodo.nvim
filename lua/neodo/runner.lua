@@ -26,7 +26,8 @@ local function should_notify(command)
 end
 
 local function close_terminal_on_success(command, job)
-    if command.cmd and not command.background and global_settings.terminal_close_on_success then
+    if command.cmd and not command.background and
+        global_settings.terminal_close_on_success and not command.keep_terminal_open then
         vim.api.nvim_buf_delete(job.buf_id, {})
     end
 end
@@ -167,7 +168,7 @@ local function start_cmd(command, project)
             vim.wo.relativenumber = false
             command_context.buf_id = vim.fn.bufnr()
             vim.api.nvim_buf_set_option(command_context.buf_id, "buflisted", false)
-            vim.api.nvim_create_autocmd({"BufEnter", "BufWinEnter"}, {
+            vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
                 buffer = command_context.buf_id,
                 callback = function()
                     vim.api.nvim_command("starti")

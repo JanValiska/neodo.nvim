@@ -69,6 +69,12 @@ M.register = function()
                 cmd = commands.conan_install,
                 enabled = commands.conan_install_enabled,
             },
+            show_cache_variables = {
+                name = "Show cache variables",
+                cmd = commands.show_cache_variables,
+                enabled = commands.show_cache_variables_enabled,
+                keep_terminal_open = true
+            },
             configure = {
                 name = "Configure",
                 cmd = commands.configure,
