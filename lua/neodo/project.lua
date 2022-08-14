@@ -12,6 +12,9 @@ local function merge_custom_config(config, custom_config)
 end
 
 local function strip_user_project_settings(user_settings)
+    if user_settings == nil then
+        return
+    end
     local to_strip = { 'path', 'hash', 'data_path', 'config_file', 'last_command' }
     for _, v in ipairs(to_strip) do
         user_settings[v] = nil
@@ -54,14 +57,6 @@ local function command_enabled(command, project, project_type)
 end
 
 function M.new(path, hash, data_path, config_file, project_types, user_project_settings)
-    if type(path) ~= 'string' or type(hash) ~= 'string' or type(config_file) ~= "string" or type(data_path) ~= "string" then
-        return nil
-    end
-
-    if type(project_types) ~= "table" or type(user_project_settings) ~= "table" then
-        return nil
-    end
-
     strip_user_project_settings(user_project_settings)
 
     local self = {

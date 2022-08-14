@@ -95,8 +95,8 @@ function M.ensure_config_file_and_data_path(project, callback)
             callback(nil)
             return
         end
-        project:set_data_path(data_path)
-        project:set_config_file(config)
+        project.set_data_path(data_path)
+        project.set_config_file(config)
         callback(true)
     end)
 end
