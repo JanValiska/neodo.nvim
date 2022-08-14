@@ -3,7 +3,6 @@ local M = {}
 local global_settings = require("neodo.settings")
 local notify = require("neodo.notify")
 local log = require("neodo.log")
-local projects = require("neodo.projects")
 local uuid_generator = require("neodo.uuid")
 local os = require("os")
 
@@ -63,7 +62,7 @@ local function on_event(job_id, data, event)
             end
             close_terminal_on_success(command, command_context)
             if command.on_success then
-                command.on_success(projects[command_context.project_hash])
+                command.on_success({ project = command_context.project, project_type = command_context.project_type })
             end
         else
             if data == 130 then
@@ -89,30 +88,12 @@ local function on_event(job_id, data, event)
     end
 end
 
-local function get_cmd_string(command, project)
-    if type(command.cmd) == "function" then
-        local params = {}
-        if command.params and type(command.params) == "function" then
-            params = command.params()
-        else
-            params = command.params
-        end
-        local result = command.cmd(params, project)
-        if result ~= nil then
-            return result
-        end
-    else
-        return vim.fn.expandcmd(command.cmd)
-    end
-    return nil
-end
-
-local function start_function_command(command, project)
-    local params = {}
+local function start_function_command(command, project, project_type)
+    local ctx = { params = nil, project = project, project_type = project_type }
     if command.params and type(command.params) == "function" then
-        params = command.params()
+        ctx.params = command.params(ctx)
     else
-        params = command.params
+        ctx.params = command.params
     end
     if should_notify(command) then
         notify.info("INVOKING", command.name)
@@ -121,22 +102,42 @@ local function start_function_command(command, project)
     command_contexts[fuuid] = {
         started_at = os.time(),
         command = command,
-        project_hash = project.hash,
+        project = project,
+        project_type = project_type
     }
     vim.schedule(function()
-        command.fn(params, project)
+        command.fn(ctx)
         if should_notify(command) then
             notify.info("DONE", command.name)
         end
         if command.on_success and type(command.on_success) == "function" then
-            command.on_success(project)
+            ctx.params = nil
+            command.on_success(ctx)
         end
         command_contexts[fuuid] = nil
     end)
 end
 
-local function start_cmd(command, project)
-    local cmd = get_cmd_string(command, project)
+local function get_cmd_string(command, project, project_type)
+    if type(command.cmd) == "function" then
+        local ctx = { params = nil, project = project, project_type = project_type }
+        if command.params and type(command.params) == "function" then
+            ctx.params = command.params(ctx)
+        else
+            ctx.params = command.params
+        end
+        local result = command.cmd(ctx)
+        if result ~= nil then
+            return result
+        end
+    elseif type(command.cmd) == "string" then
+        return vim.fn.expandcmd(command.cmd)
+    end
+    return nil
+end
+
+local function start_cmd(command, project, project_type)
+    local cmd = get_cmd_string(command, project, project_type)
     if cmd == nil then
         log.error("Cannot run command, cmd incorrect")
         return false
@@ -153,7 +154,8 @@ local function start_cmd(command, project)
     local command_context = {
         started_at = os.time(),
         command = command,
-        project_hash = project.hash,
+        project = project,
+        project_type = project_type,
         output_lines = {},
     }
 
@@ -189,13 +191,6 @@ local function start_cmd(command, project)
     end
 end
 
-local function command_enabled(command, project)
-    if command.enabled and type(command.enabled) == "function" then
-        return command.enabled(command.params, project)
-    end
-    return true
-end
-
 local function command_still_running(command)
     for _, running_command in pairs(command_contexts) do
         if running_command.command == command then
@@ -205,17 +200,7 @@ local function command_still_running(command)
     return false
 end
 
-local function run_project_command(command, project)
-    if command == nil then
-        log.warning("Command not found")
-        return false
-    end
-
-    if not command_enabled(command, project) then
-        log.warning("Command disabled")
-        return false
-    end
-
+function M.run_project_command(command, project, project_type)
     if command_still_running(command) then
         log.warning("Command already started")
         return false
@@ -224,57 +209,15 @@ local function run_project_command(command, project)
     vim.api.nvim_command("cclose")
 
     if command.fn then
-        start_function_command(command, project)
+        start_function_command(command, project, project_type)
+        return true
     elseif command.cmd then
-        start_cmd(command, project)
-    else
-        log.error("No 'fn' or 'cmd' defined in given command")
+        start_cmd(command, project, project_type)
+        return true
     end
 
-    return true
-end
-
-function M.run(command_key)
-    if vim.b.neodo_project_hash == nil then
-        log.warning("Buffer not attached to any project")
-        return
-    end
-
-    local project = projects[vim.b.neodo_project_hash]
-    local command = project.commands[command_key]
-    if run_project_command(command, project) then
-        project.last_command = command_key
-    end
-end
-
-function M.run_last()
-    local hash = vim.b.neodo_project_hash
-    if hash == nil then
-        log.warning("Buffer not attached to any project")
-        return
-    end
-
-    local project = projects[vim.b.neodo_project_hash]
-    if not project.last_command then
-        log.warning("No last command defined")
-        return
-    end
-    local command = project.commands[project.last_command]
-    run_project_command(command, project)
-end
-
-function M.get_enabled_commands_keys(project)
-    if project == nil or project.commands == nil then
-        return {}
-    end
-
-    local keys = {}
-    for key, command in pairs(project.commands) do
-        if command_enabled(command, project) then
-            table.insert(keys, key)
-        end
-    end
-    return keys
+    log.error("No 'fn' or 'cmd' defined in given command")
+    return false
 end
 
 function M.get_jobs_count()

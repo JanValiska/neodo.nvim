@@ -9,22 +9,14 @@ local log = require("neodo.log")
 local notify = require("neodo.notify")
 
 local picker = require("neodo.picker")
-local runner = require("neodo.runner")
 local utils = require("neodo.utils")
 
 -- per project configurations
 local projects = require("neodo.projects")
+local project_factory = require("neodo.project")
 
 local function load_settings(file)
     return dofile(file)
-end
-
-local function load_and_get_merged_config(project_config_file, global_project_settings)
-    local settings = load_settings(project_config_file)
-    if settings == nil then
-        return global_project_settings
-    end
-    return vim.tbl_deep_extend("force", global_project_settings, settings)
 end
 
 local function change_root(dir)
@@ -36,41 +28,7 @@ local function change_root(dir)
     end
 end
 
-local function call_buffer_on_attach(bufnr, project)
-    local project_buffer_on_attach = project.buffer_on_attach
-    if project_buffer_on_attach and type(project_buffer_on_attach) == "function" then
-        project_buffer_on_attach(bufnr)
-    end
-
-    -- call project specific on attach
-    local user_buffer_on_attach = project.user_buffer_on_attach
-    if user_buffer_on_attach and type(user_buffer_on_attach) == "function" then
-        user_buffer_on_attach(bufnr)
-    end
-end
-
-local function call_on_attach(project)
-    local global_on_attach = project.on_attach
-    if global_on_attach and type(global_on_attach) == "function" then
-        global_on_attach(project)
-    end
-
-    -- call project specific on attach
-    local user_on_attach = project.user_on_attach
-    if user_on_attach and type(user_on_attach) == "function" then
-        user_on_attach(project)
-    end
-end
-
-local function fix_command_names(project)
-    for key, command in pairs(project.commands) do
-        if not command.name then
-            command.name = key
-        end
-    end
-end
-
-local function load_project(path, type)
+local function load_project(path, project_types_keys)
     local hash = configuration.project_hash(path)
 
     if global_settings.load_project_notify then
@@ -81,48 +39,35 @@ local function load_project(path, type)
     local config_file, data_path = configuration.get_project_config_and_datapath(path)
 
     -- load project
-    local project = {}
+    local user_project_settings = nil
     if config_file ~= nil then
-        if type == nil then
-            project = load_settings(config_file) or {}
-        else
-            local global_project_settings = global_settings.project_type[type]
-            project = load_and_get_merged_config(config_file, global_project_settings)
-        end
-    else
-        if type ~= nil then
-            project = global_settings.project_type[type]
-        else
-            project = global_settings.generic_project_settings
-        end
+        user_project_settings = load_settings(config_file) or {}
     end
 
-    fix_command_names(project)
-
-    project.path = path
-    project.type = type
-    project.hash = hash
-    project.data_path = data_path
-    project.config_file = config_file
-    call_on_attach(project)
+    local project_types = {}
+    for _, project_type_key in ipairs(project_types_keys) do
+        project_types[project_type_key] = global_settings.project_types[project_type_key]
+    end
+    local project = project_factory.new(path, hash, data_path, config_file, project_types, user_project_settings)
+    project.on_attach()
     projects[hash] = project
-    return projects[hash]
+    return project
 end
 
 local function reload_project(project)
-    local dir = project.path
-    local type = project.type
+    local path = project.path()
+    local project_type_keys = project.project_types_keys()
 
     -- TODO check if some project jobs are running and stop them
-    projects[project.hash] = nil
+    projects[project.hash()] = nil
     project = nil
 
     vim.schedule(function()
-        local p = load_project(dir, type)
-        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-            local hash = utils.get_buf_variable(buf, "neodo_project_hash")
-            if hash == p.hash then
-                call_buffer_on_attach(buf, p)
+        local p = load_project(path, project_type_keys)
+        for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            local hash = utils.get_buf_variable(bufnr, "neodo_project_hash")
+            if hash == p.hash() then
+                p.buffer_on_attach(bufnr)
             end
         end
     end)
@@ -130,33 +75,36 @@ end
 
 local function config_changed(config)
     for _, project in pairs(projects) do
-        if project.config_file and project.config_file == config then
+        if project.config_file() == config then
             reload_project(project)
         end
     end
 end
 
 -- called when project root is detected
-local function on_project_dir_detected(p, bufnr)
+local function on_project_folder_and_types_detected(project_folder_and_types, bufnr)
+    local path = project_folder_and_types.path
+    local project_types_keys = project_folder_and_types.project_types_keys
     -- p.dir is nil when no root is detected
-    if p.path == nil then
+    if path == nil then
         return
     end
 
     -- change root
-    change_root(p.path)
+    change_root(path)
+
+    local hash = configuration.project_hash(path)
+    -- mark current buffer that it belongs to project
+    vim.b.neodo_project_hash = hash
 
     -- return already loaded project
-    local project = projects[configuration.project_hash(p.path)]
+    local project = projects[hash]
     if project == nil then
-        project = load_project(p.path, p.type)
+        project = load_project(path, project_types_keys)
     end
 
-    -- mark current buffer that it belongs to project
-    vim.b.neodo_project_hash = project.hash
-
     -- call buffer on attach handlers
-    call_buffer_on_attach(bufnr, project)
+    project.buffer_on_attach(bufnr)
 end
 
 local function already_loaded()
@@ -180,22 +128,22 @@ local function find_project()
 
     local bufnr = vim.api.nvim_get_current_buf()
     for _, project in pairs(projects) do
-        if string.find(basepath, project.path) then
-            local p = {
-                path = project.path,
-                type = project.type,
+        if string.find(basepath, project.path()) then
+            local project_folder_and_types = {
+                path = project.path(),
+                project_types_keys = project.project_types_keys(),
             }
-            on_project_dir_detected(p, bufnr)
+            on_project_folder_and_types_detected(project_folder_and_types, bufnr)
         end
     end
 
-    root.find_project(basepath, function(p)
-        on_project_dir_detected(p, bufnr)
+    root.find_project(basepath, function(project_folder_and_types)
+        on_project_folder_and_types_detected(project_folder_and_types, bufnr)
     end)
 end
 
--- called when the buffer is entered first time
-function M.buffer_entered()
+-- called when the buffer is read first time or using :e
+function M.buffer_read()
     -- ignore files with no filetype specified
     local ft = vim.bo.filetype
     if ft == "" then
@@ -215,9 +163,34 @@ function M.buffer_entered()
     end
 
     if already_loaded() then
-        change_root(projects[vim.b.neodo_project_hash].path)
+        change_root(projects[vim.b.neodo_project_hash].path())
     else
         find_project()
+    end
+end
+
+-- called when the buffer is entered(on buffer switch, etc)
+function M.buffer_enter()
+    -- ignore files with no filetype specified
+    local ft = vim.bo.filetype
+    if ft == "" then
+        return
+    end
+
+    -- ignore some special filetypes (qf, etc...)
+    local filetype_ignore = { "qf" }
+    if vim.tbl_contains(filetype_ignore, ft) then
+        return
+    end
+
+    -- permit only for specified buffer types
+    local buftype_permit = { "", "nowrite" }
+    if vim.tbl_contains(buftype_permit, vim.bo.buftype) == false then
+        return
+    end
+
+    if already_loaded() then
+        change_root(projects[vim.b.neodo_project_hash].path())
     end
 end
 
@@ -234,7 +207,7 @@ function M.has_config()
             if project == nil then
                 return false
             end
-            return project.config_file ~= nil
+            return project.config_file() ~= nil
         end
     end
     return false
@@ -253,27 +226,19 @@ end
 
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
-    runner.run(command_key)
-end
-
-function M.run_last()
-    runner.run_last()
-end
-
-function M.get_command_params(command_key)
     if vim.b.neodo_project_hash == nil then
         log.warning("Buffer not attached to any project")
         return
     end
+    projects[vim.b.neodo_project_hash].run(command_key)
+end
 
-    local project = projects[vim.b.neodo_project_hash]
-    local command = project.commands[command_key]
-    if command == nil then
-        log.warning("Unknown command '" .. command_key .. "'")
-        return nil
-    else
-        return command.params
+function M.run_last()
+    if vim.b.neodo_project_hash == nil then
+        log.warning("Buffer not attached to any project")
+        return
     end
+    projects[vim.b.neodo_project_hash].run_last_command()
 end
 
 function M.neodo()
@@ -296,8 +261,7 @@ end
 function M.completions_helper()
     local project_hash = vim.b.neodo_project_hash
     if project_hash ~= nil then
-        local project = projects[project_hash]
-        return runner.get_enabled_commands_keys(project)
+        return projects[project_hash].get_command_keys()
     end
     return {}
 end
@@ -312,12 +276,12 @@ function M.edit_project_settings()
 
     -- if project has config, edit it
     local project = projects[project_hash]
-    if project.config_file then
-        vim.api.nvim_exec(":e " .. project.config_file, false)
+    if project.config_file() then
+        vim.api.nvim_exec(":e " .. project.config_file(), false)
     else
         configuration.ensure_config_file_and_data_path(project, function(res)
             if res then
-                vim.api.nvim_exec(":e " .. project.config_file, false)
+                vim.api.nvim_exec(":e " .. project.config_file(), false)
             else
                 log.error("Cannot create config file")
             end
@@ -330,6 +294,7 @@ function M.info()
 end
 
 local function register_built_in_project_types()
+    require("neodo.project_type.git").register()
     require("neodo.project_type.mongoose").register()
     require("neodo.project_type.cmake").register()
     require("neodo.project_type.php_composer").register()
@@ -352,8 +317,9 @@ function M.setup(config)
 
     vim.api.nvim_exec(
         [[
-     augroup Mongoose
-       autocmd BufEnter * lua require'neodo'.buffer_entered()
+     augroup NeodoBaseAutocmds
+       autocmd BufRead * lua require'neodo'.buffer_read()
+       autocmd BufEnter * lua require'neodo'.buffer_enter()
        autocmd BufWrite */neodo/*/config.lua lua require'neodo'.config_file_written()
        autocmd BufWrite */.neodo/config.lua lua require'neodo'.config_file_written()
      augroup end

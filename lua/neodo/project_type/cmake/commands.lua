@@ -6,7 +6,8 @@ local code_model = require("neodo.project_type.cmake.code_model")
 local config = require("neodo.project_type.cmake.config")
 local functions = require('neodo.project_type.cmake.functions')
 
-function M.create_profile(_, project)
+function M.create_profile(ctx)
+    local cmake_project = ctx.project_type
     picker.pick("Select build type: ", { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' }, function(build_type)
         local function create_profile(build_configuration)
             local profile_key = build_type
@@ -24,16 +25,16 @@ function M.create_profile(_, project)
             end
             profile.build_dir = "build-" .. profile_key
             fs.mkdir(profile.build_dir)
-            project.config.profiles[profile_key] = profile
-            M.select_profile(profile_key, project)
-            project.config.selected_target = nil
-            config.save(project)
+            cmake_project.config.profiles[profile_key] = profile
+            M.select_profile(ctx)
+            cmake_project.config.selected_target = nil
+            config.save(ctx.project, cmake_project)
         end
 
-        if project.config.build_configurations then
-            picker.pick("Select build configuration:", vim.tbl_keys(project.config.build_configurations),
+        if cmake_project.config.build_configurations then
+            picker.pick("Select build configuration:", vim.tbl_keys(cmake_project.config.build_configurations),
                 function(bc_key)
-                    local build_configuration = project.config.build_configurations[bc_key]
+                    local build_configuration = cmake_project.config.build_configurations[bc_key]
                     create_profile(build_configuration)
                 end)
         else
@@ -42,144 +43,163 @@ function M.create_profile(_, project)
     end)
 end
 
-function M.select_profile(_, project)
-    picker.pick("Select profile: ", vim.tbl_keys(project.config.profiles), function(profile_key)
-        project.config.selected_profile = profile_key
-        project.config.selected_target = nil
-        local profile = project.config.profiles[profile_key]
+function M.select_profile(ctx)
+    local cmake_project = ctx.project_type
+    picker.pick("Select profile: ", vim.tbl_keys(cmake_project.config.profiles), function(profile_key)
+        cmake_project.config.selected_profile = profile_key
+        cmake_project.config.selected_target = nil
+        local profile = cmake_project.config.profiles[profile_key]
         functions.switch_compile_commands(profile)
-        config.save(project)
+        config.save(ctx.project, cmake_project)
     end)
 end
 
-function M.select_profile_enabled(_, project)
-    return vim.tbl_count(project.config.profiles) ~= 0
+function M.select_profile_enabled(ctx)
+    return vim.tbl_count(ctx.project_type.config.profiles) ~= 0
 end
 
-function M.delete_profile(_, project)
-    picker.pick("Select profile to delete: ", vim.tbl_keys(project.config.profiles), function(profile_key)
-        local profile = project.config.profiles[profile_key]
+function M.delete_profile(ctx)
+    local cmake_project = ctx.project_type
+    picker.pick("Select profile to delete: ", vim.tbl_keys(cmake_project.config.profiles), function(profile_key)
+        local profile = cmake_project.config.profiles[profile_key]
         fs.delete(profile.build_dir)
-        project.config.profiles[profile_key] = nil
-        project.code_models[profile_key] = nil
-        project.config.selected_profile = nil
-        config.save(project)
+        cmake_project.config.profiles[profile_key] = nil
+        cmake_project.code_models[profile_key] = nil
+        cmake_project.config.selected_profile = nil
+        config.save(ctx.project, cmake_project)
     end)
 end
 
-function M.delete_profile_enabled(_, project)
-    return vim.tbl_count(project.config.profiles) ~= 0
+function M.delete_profile_enabled(ctx)
+    return vim.tbl_count(ctx.project_type.config.profiles) ~= 0
 end
 
-function M.select_target(_, project)
-    local targets = M.get_targets(project)
+function M.select_target(ctx)
+    local cmake_project = ctx.project_type
+    local targets = M.get_targets(cmake_project)
     picker.pick("Select target: ", vim.tbl_keys(targets), function(selection)
-        project.config.selected_target = selection
-        config.save(project)
+        cmake_project.config.selected_target = selection
+        config.save(ctx.project, cmake_project)
     end)
 end
 
-function M.select_target_enabled(_, project)
-    local profile = functions.get_selected_profile(project)
+function M.select_target_enabled(ctx)
+    local cmake_project = ctx.project_type
+    local profile = functions.get_selected_profile(cmake_project)
     if not profile then
         return false
     end
-    return profile.configured and vim.tbl_count(M.get_targets(project)) ~= 0
+    return profile.configured and vim.tbl_count(M.get_targets(cmake_project)) ~= 0
 end
 
-function M.clean(_, project)
-    local profile = project.config.profiles[project.config.selected_profile]
+function M.clean(ctx)
+    local cmake_project = ctx.project_type
+    local profile = cmake_project.config.profiles[cmake_project.config.selected_profile]
     return "cmake --build " .. profile.build_dir .. " --target clean"
 end
 
-function M.clean_enabled(_, project)
-    local profile = functions.get_selected_profile(project)
+function M.clean_enabled(ctx)
+    local cmake_project = ctx.project_type
+    local profile = functions.get_selected_profile(cmake_project)
     if not profile then
         return false
     end
     return profile.configured
 end
 
-function M.build_all(_, project)
-    local profile = project.config.profiles[project.config.selected_profile]
+function M.build_all(ctx)
+    local cmake_project = ctx.project_type
+    local profile = cmake_project.config.profiles[cmake_project.config.selected_profile]
     return "cmake --build " .. profile.build_dir
 end
 
-function M.build_all_enabled(_, project)
-    local profile = functions.get_selected_profile(project)
+function M.build_all_enabled(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
     if profile == nil then
         return false
     end
     return profile.configured
 end
 
-function M.configure(_, project)
-    local profile = functions.get_selected_profile(project)
-    local profile_key = project.config.selected_profile
-    project.code_models[profile_key] = code_model:new(profile.build_dir)
-    project.code_models[profile_key]:write_query()
+function M.configure(ctx)
+    local cmake_project = ctx.project_type
+    local profile = functions.get_selected_profile(cmake_project)
+    local profile_key = cmake_project.config.selected_profile
+    cmake_project.code_models[profile_key] = code_model:new(profile.build_dir)
+    cmake_project.code_models[profile_key]:write_query()
     return "cmake -B " .. profile.build_dir .. " " .. profile.cmake_params
 end
 
-function M.configure_enabled(_, project)
+function M.configure_enabled(ctx)
+    local cmake_project = ctx.project_type
     local function conan_installed()
-        local profile = functions.get_selected_profile(project)
+        local profile = functions.get_selected_profile(cmake_project)
         if profile == nil then
             return false
         end
-        if project.config.has_conan then
+        if cmake_project.config.has_conan then
             return fs.file_exists(profile.build_dir .. "/conan.lock")
         end
         return true
     end
 
-    return (project.config.selected_profile ~= nil) and conan_installed()
+    return (cmake_project.config.selected_profile ~= nil) and conan_installed()
 end
 
-function M.configure_on_success(project)
-    local profile = functions.get_selected_profile(project)
-    local profile_key = project.config.selected_profile
-    project.code_models[profile_key]:read_reply()
+function M.configure_on_success(ctx)
+    local cmake_project = ctx.project_type
+    local profile = functions.get_selected_profile(cmake_project)
+    local profile_key = cmake_project.config.selected_profile
+    cmake_project.code_models[profile_key]:read_reply()
     profile.configured = true
     functions.switch_compile_commands(profile)
-    config.save(project)
+    config.save(ctx.project, cmake_project)
 end
 
-function M.build_selected_target(_, project)
-    local profile = project.config.profiles[project.config.selected_profile]
-    return "cmake --build " .. profile.build_dir .. " --target " .. project.config.selected_target
+function M.build_selected_target(ctx)
+    local cmake_project = ctx.project_type
+    local profile = cmake_project.config.profiles[cmake_project.config.selected_profile]
+    return "cmake --build " .. profile.build_dir .. " --target " .. cmake_project.config.selected_target
 end
 
-function M.build_selected_target_enabled(_, project)
-    return project.config.selected_target ~= nil
+function M.build_selected_target_enabled(ctx)
+    return ctx.project_type.config.selected_target ~= nil
 end
 
-function M.run_selected_target(_, project)
-    local target = M.get_targets(project)[project.config.selected_target]
+function M.run_selected_target(ctx)
+    local cmake_project = ctx.project_type
+    local target = M.get_targets(cmake_project)[cmake_project.config.selected_target]
     return target.paths[1]
 end
 
-function M.run_selected_target_enabled(_, project)
-    return project.config.selected_target ~= nil and
-        M.get_targets(project)[project.config.selected_target].type == "EXECUTABLE"
+function M.run_selected_target_enabled(ctx)
+    local cmake_project = ctx.project_type
+    return cmake_project.config.selected_target ~= nil and
+        M.get_targets(cmake_project)[cmake_project.config.selected_target].type == "EXECUTABLE"
 end
 
-function M.conan_install(_, project)
-    local profile = project.config.profiles[project.config.selected_profile]
+function M.conan_install(ctx)
+    local cmake_project = ctx.project_type
+    local profile = cmake_project.config.profiles[cmake_project.config.selected_profile]
     return "conan install --build=missing -if " .. profile.build_dir .. " ."
 end
 
-function M.conan_install_enabled(_, project)
-    return project.config.has_conan and project.config.selected_profile
+function M.conan_install_enabled(ctx)
+    local cmake_project = ctx.project_type
+    return cmake_project.config.has_conan and cmake_project.config.selected_profile
 end
 
-function M.show_cache_variables(_, project)
-    local profile = functions.get_selected_profile(project)
+function M.show_cache_variables(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
     return "cmake -B " .. profile.build_dir .. " -L"
 end
 
-function M.show_cache_variables_enabled(_, project)
-    return project.config.selected_profile ~= nil
+function M.show_cache_variables_enabled(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
+    if not profile then
+        return false
+    end
+    return profile.configured
 end
 
 function M.get_targets(project)

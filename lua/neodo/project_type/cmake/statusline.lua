@@ -1,15 +1,15 @@
 local M = {}
 
-function M.statusline(project)
+function M.statusline(project_type)
     local statusline = "CMake ❯ "
-    if project.config.selected_profile then
-        statusline = statusline .. project.config.selected_profile
-        local profile = project.config.profiles[project.config.selected_profile]
+    if project_type.config.selected_profile then
+        statusline = statusline .. project_type.config.selected_profile
+        local profile = project_type.config.profiles[project_type.config.selected_profile]
         if not profile.configured then
             statusline = statusline .. " ❯ unconfigured"
         else
-            if project.config.selected_target then
-                statusline = statusline .. " ❯ " .. project.config.selected_target
+            if project_type.config.selected_target then
+                statusline = statusline .. " ❯ " .. project_type.config.selected_target
             end
         end
     else

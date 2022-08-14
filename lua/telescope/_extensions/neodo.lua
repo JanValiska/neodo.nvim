@@ -10,13 +10,6 @@ local telescope_config = require("telescope.config").values
 local actions = require("telescope.actions")
 local projects = require('neodo.projects')
 local log = require('neodo.log')
-local runner = require('neodo.runner')
-
-local on_command_selected = function(prompt_bufnr)
-    local selection = require'telescope.actions.state'.get_selected_entry(prompt_bufnr)
-    actions.close(prompt_bufnr)
-    runner.run(selection.value)
-end
 
 ---Main entrypoint for Telescope.
 ---@param opts table
@@ -29,16 +22,20 @@ local function neodo_entry_point(opts)
     end
 
     local project = projects[vim.b.neodo_project_hash]
-    local results = runner.get_enabled_commands_keys(project)
+    local results = project:get_commands_keys()
 
     if #results ~= 0 then
         pickers.new(opts, {
             prompt_title = "Select NeoDo command",
-            finder = finders.new_table({results = results}),
+            finder = finders.new_table({ results = results }),
             previewer = false,
             sorter = telescope_config.generic_sorter(opts),
             attach_mappings = function(_, _)
-                actions.select_default:replace(on_command_selected)
+                actions.select_default:replace(function(prompt_bufnr)
+                    local selection = require 'telescope.actions.state'.get_selected_entry(prompt_bufnr)
+                    actions.close(prompt_bufnr)
+                    project.run(selection.value)
+                end)
                 return true
             end
         }):find()
@@ -48,4 +45,4 @@ local function neodo_entry_point(opts)
 
 end
 
-return telescope.register_extension({exports = {neodo = neodo_entry_point}})
+return telescope.register_extension({ exports = { neodo = neodo_entry_point } })

@@ -43,7 +43,7 @@ function M.flash_cmd(params, _)
 end
 
 M.register = function()
-    settings.project_type.mongoose = {
+    settings.project_types.mongoose = {
         name = "Mongoose OS",
         commands = {
             build = {

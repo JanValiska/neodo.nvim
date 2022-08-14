@@ -3,7 +3,7 @@ local M = {}
 local settings = require 'neodo.settings'
 
 M.register = function()
-    settings.project_type.php_composer = {
+    settings.project_types.php_composer = {
         name = "PHP(composer)",
         commands = {
         },

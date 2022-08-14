@@ -6,11 +6,11 @@ local commands = require("neodo.project_type.cmake.commands")
 
 M.register = function()
     local settings = require("neodo.settings")
-    settings.project_type.cmake = {
+    settings.project_types.cmake = {
         name = "CMake",
         patterns = { "CMakeLists.txt" },
-        on_attach = function(project)
-            config.load(project)
+        on_attach = function(ctx)
+            config.load(ctx.project, ctx.project_type)
         end,
         user_on_attach = nil,
         buffer_on_attach = nil,

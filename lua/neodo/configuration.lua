@@ -4,7 +4,7 @@ local neodo_folder = '.neodo'
 local dp = vim.fn.stdpath("data")
 local base_data_path = dp .. '/neodo'
 local fs = require 'neodo.file'
-local settings = require'neodo.settings'
+local settings = require 'neodo.settings'
 
 function M.project_hash(project_path) return vim.fn.sha256(project_path) end
 
@@ -12,7 +12,6 @@ local function make_percent_path(path)
     if string.sub(path, 1, 1) == fs.separator then
         path = path:sub(2)
     end
-    print(vim.inspect(path))
     local p = path:gsub(fs.separator, "-")
     return p
 end
@@ -65,7 +64,6 @@ local function create_config_file(data_path, callback)
         fs.create_directories(data_path)
     end
     local config_file = fs.join_path(data_path, config_file_name)
-    print(vim.inspect(config_file))
     write_template(config_file, template, function(err)
         if err then
             print("Cannot create config file: " .. config_file)
@@ -92,17 +90,14 @@ function M.ensure_config_file_and_data_path(project, callback)
         f = M.create_in_the_source_config_file
     end
 
-    f(project.path, function(config, data_path)
+    f(project.path(), function(config, data_path)
         if not config or not data_path then
             callback(nil)
+            return
         end
-        if config then
-            project.config_file = config
-            callback(config)
-        end
-        if data_path then
-            project.data_path = data_path
-        end
+        project:set_data_path(data_path)
+        project:set_config_file(config)
+        callback(true)
     end)
 end
 

@@ -40,11 +40,11 @@ function M.resize(vertical, amount)
 end
 
 function M.delete_buf(bufnr)
-    if bufnr ~= nil then vim.api.nvim_buf_delete(bufnr, {force = true}) end
+    if bufnr ~= nil then vim.api.nvim_buf_delete(bufnr, { force = true }) end
 end
 
 function M.close_win(winnr)
-    if winnr ~= nil then vim.api.nvim_win_close(winnr, {force = true}) end
+    if winnr ~= nil then vim.api.nvim_win_close(winnr, { force = true }) end
 end
 
 function M.get_buf_variable(buf, var_name)
@@ -57,4 +57,16 @@ function M.get_buf_variable(buf, var_name)
         return nil
     end
 end
+
+function M.split_string(inputstr, delimiter)
+    if delimiter == nil then
+        delimiter = "%s"
+    end
+    local t = {}
+    for str in string.gmatch(inputstr, "([^" .. delimiter .. "]+)") do
+        table.insert(t, str)
+    end
+    return t
+end
+
 return M
