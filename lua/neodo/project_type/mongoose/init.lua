@@ -5,7 +5,8 @@ local settings = require 'neodo.settings'
 local compilers = require("neodo.compilers")
 local log = require("neodo.log")
 
-function M.build_cmd(params, _)
+function M.build_cmd(ctx)
+    local params = ctx.params
     local cmd = { 'mos build' }
 
     if not params then return { type = 'error', text = 'Params not found' } end
@@ -32,7 +33,8 @@ M.build_params = { platform = "esp32", local_build = true, verbose = false }
 M.build_errorformat = compilers.get_errorformat('gcc')
 
 
-function M.flash_cmd(params, _)
+function M.flash_cmd(ctx)
+    local params = ctx.params
     local cmd = { 'mos flash' }
 
     if params ~= nil then
