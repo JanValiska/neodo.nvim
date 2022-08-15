@@ -1,6 +1,8 @@
 local log = require('neodo.log')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
+local configuration = require('neodo.configuration')
+local global_settings = require("neodo.settings")
 
 local M = {}
 
@@ -51,27 +53,39 @@ end
 
 local function command_enabled(command, project, project_type)
     if command.enabled and type(command.enabled) == "function" then
-        return command.enabled({params = command.params, project = project, project_type = project_type})
+        return command.enabled({ params = command.params, project = project, project_type = project_type })
     end
     return true
 end
 
-function M.new(path, hash, data_path, config_file, project_types, user_project_settings)
-    strip_user_project_settings(user_project_settings)
-
+function M.new(path, project_types_keys)
+    -- private project properties(captured to public interface p)
     local self = {
         path = path,
-        hash = hash,
-        data_path = data_path,
-        config_file = config_file,
+        hash = configuration.project_hash(path),
+        data_path = nil,
+        config_file = nil,
         last_command = nil,
         on_attach = nil,
         buffer_on_attach = nil,
-        project_types = project_types,
+        project_types = {},
         commands = {}
     }
 
-    self = merge_custom_config(self, user_project_settings)
+    for _, project_type_key in ipairs(project_types_keys) do
+        self.project_types[project_type_key] = global_settings.project_types[project_type_key]
+    end
+
+    -- Check if config file and datapath exists
+    self.config_file, self.data_path = configuration.get_project_config_and_datapath(path)
+
+    -- load project
+    if self.config_file ~= nil then
+        local user_project_settings = dofile(self.config_file) or {}
+        strip_user_project_settings(user_project_settings)
+        self = merge_custom_config(self, user_project_settings)
+    end
+
 
     fix_command_names(self)
 
@@ -142,32 +156,32 @@ function M.new(path, hash, data_path, config_file, project_types, user_project_s
     function p.buffer_on_attach(bufnr)
         for _, t in pairs(self.project_types) do
             if t.buffer_on_attach and type(t.buffer_on_attach) == "function" then
-                t.buffer_on_attach({bufnr = bufnr, project = p, project_type = t})
+                t.buffer_on_attach({ bufnr = bufnr, project = p, project_type = t })
             end
         end
         if self.buffer_on_attach and type(self.buffer_on_attach) == "function" then
-            self.buffer_on_attach({bufnr = bufnr, project = p})
+            self.buffer_on_attach({ bufnr = bufnr, project = p })
         end
     end
 
     function p.on_attach()
         for _, t in pairs(self.project_types) do
             if t.on_attach and type(t.on_attach) == "function" then
-                t.on_attach({project = p, project_type = t})
+                t.on_attach({ project = p, project_type = t })
             end
         end
         if self.on_attach and type(self.on_attach) == "function" then
-            self.on_attach({project = p})
+            self.on_attach({ project = p })
         end
     end
 
     function p.get_commands_keys_names()
         local keys_names = {}
-            for key, command in pairs(self.commands) do
-                if command_enabled(command, p) then
-                    table.insert(keys_names, { key = key, name = "Custom: " .. command.name })
-                end
+        for key, command in pairs(self.commands) do
+            if command_enabled(command, p) then
+                table.insert(keys_names, { key = key, name = "Custom: " .. command.name })
             end
+        end
         for project_type_key, project_type in pairs(self.project_types) do
             if project_type.commands then
                 for command_key, command in pairs(project_type.commands) do
@@ -184,15 +198,12 @@ function M.new(path, hash, data_path, config_file, project_types, user_project_s
 
     function p.get_commands_keys()
         local keys = {}
-        if p.commands then
-            for key, command in pairs(p.commands) do
-                if command_enabled(command, p) then
-                    table.insert(keys, key)
-                end
+        for key, command in pairs(self.commands) do
+            if command_enabled(command, p) then
+                table.insert(keys, key)
             end
-
         end
-        for project_type_key, project_type in pairs(p.project_types) do
+        for project_type_key, project_type in pairs(self.project_types) do
             if project_type.commands then
                 for command_key, command in pairs(project_type.commands) do
                     if command_enabled(command, p, project_type) then

@@ -22,7 +22,7 @@ local function neodo_entry_point(opts)
     end
 
     local project = projects[vim.b.neodo_project_hash]
-    local results = project:get_commands_keys()
+    local results = project.get_commands_keys()
 
     if #results ~= 0 then
         pickers.new(opts, {
