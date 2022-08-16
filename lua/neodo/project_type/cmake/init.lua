@@ -1,5 +1,6 @@
 local M = {}
 
+local log = require("neodo.log")
 local compilers = require("neodo.compilers")
 local config = require("neodo.project_type.cmake.config")
 local commands = require("neodo.project_type.cmake.commands")
@@ -10,7 +11,21 @@ M.register = function()
         name = "CMake",
         patterns = { "CMakeLists.txt" },
         on_attach = function(ctx)
-            config.load(ctx.project, ctx.project_type)
+            local function load_config()
+                config.load(ctx.project, ctx.project_type)
+            end
+
+            if not ctx.project.config_file() then
+                ctx.project.create_config_file(function(result)
+                    if result then
+                        load_config()
+                    else
+                        log.error("CMake project_type needs project data_path, but cannot be created.")
+                    end
+                end)
+            else
+                load_config()
+            end
         end,
         user_on_attach = nil,
         buffer_on_attach = nil,

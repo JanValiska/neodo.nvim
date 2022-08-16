@@ -235,7 +235,7 @@ function M.edit_project_settings()
     if project.config_file() then
         vim.api.nvim_exec(":e " .. project.config_file(), false)
     else
-        configuration.ensure_config_file_and_data_path(project, function(res)
+        project.create_config_file(function(res)
             if res then
                 vim.api.nvim_exec(":e " .. project.config_file(), false)
             else

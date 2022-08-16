@@ -58,7 +58,18 @@ local function command_enabled(command, project, project_type)
     return true
 end
 
+local function table_copy(datatable)
+  local new_datatable={}
+  if type(datatable)=="table" then
+    for k,v in pairs(datatable) do new_datatable[k]=table_copy(v) end
+  else
+    new_datatable=datatable
+  end
+  return new_datatable
+end
+
 function M.new(path, project_types_keys)
+        print("Caaaaaaling")
     -- private project properties(captured to public interface p)
     local self = {
         path = path,
@@ -73,7 +84,7 @@ function M.new(path, project_types_keys)
     }
 
     for _, project_type_key in ipairs(project_types_keys) do
-        self.project_types[project_type_key] = global_settings.project_types[project_type_key]
+        self.project_types[project_type_key] = table_copy(global_settings.project_types[project_type_key])
     end
 
     -- Check if config file and datapath exists
@@ -103,16 +114,24 @@ function M.new(path, project_types_keys)
         return self.data_path
     end
 
-    function p.set_data_path(dpath)
-        self.data_path = dpath
-    end
-
     function p.config_file()
         return self.config_file
     end
 
-    function p.set_config_file(file)
-        self.config_file = file
+    function p.create_config_file(callback)
+        if self.config_file and self.data_path then
+            callback(true)
+        else
+            configuration.ensure_config_file_and_data_path(p, function(config_file, data_path)
+                self.config_file = config_file
+                self.data_path = data_path
+                if self.config_file and self.data_path then
+                    callback(true)
+                else
+                    callback(false)
+                end
+            end)
+        end
     end
 
     function p.project_types()

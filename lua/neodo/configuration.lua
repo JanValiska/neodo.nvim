@@ -74,30 +74,24 @@ local function create_config_file(data_path, callback)
     end)
 end
 
-function M.create_out_of_source_config_file(project_path, callback)
+local function create_out_of_source_config_file(project_path, callback)
     local data_path = get_out_of_source_project_data_path(project_path)
     create_config_file(data_path, callback)
 end
 
-function M.create_in_the_source_config_file(project_path, callback)
+local function create_in_the_source_config_file(project_path, callback)
     local data_path = get_in_the_source_project_data_path(project_path)
     create_config_file(data_path, callback)
 end
 
 function M.ensure_config_file_and_data_path(project, callback)
-    local f = M.create_out_of_source_config_file
+    local f = create_out_of_source_config_file
     if settings.use_in_the_source_config then
-        f = M.create_in_the_source_config_file
+        f = create_in_the_source_config_file
     end
 
     f(project.path(), function(config, data_path)
-        if not config or not data_path then
-            callback(nil)
-            return
-        end
-        project.set_data_path(data_path)
-        project.set_config_file(config)
-        callback(true)
+        callback(config, data_path)
     end)
 end
 

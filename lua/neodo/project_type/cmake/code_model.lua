@@ -7,10 +7,6 @@ local base_reply_dir = fs.join_path(base_api_dir, "reply")
 local base_codemodel_file = "codemodel-v2"
 
 local CodeModel = {
-    build_dir = nil,
-	query_dir = nil,
-	reply_dir = nil,
-    targets = {}
 }
 
 function CodeModel:write_query()
@@ -84,6 +80,7 @@ function CodeModel:new(build_dir)
         build_dir = build_dir,
 		query_dir = fs.join_path(build_dir, base_query_dir),
 		reply_dir = fs.join_path(build_dir, base_reply_dir),
+        targets = {}
 	}
 	setmetatable(o, self)
 	self.__index = self
