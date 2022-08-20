@@ -69,7 +69,6 @@ local function table_copy(datatable)
 end
 
 function M.new(path, project_types_keys)
-        print("Caaaaaaling")
     -- private project properties(captured to public interface p)
     local self = {
         path = path,

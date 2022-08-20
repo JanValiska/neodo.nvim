@@ -44,6 +44,17 @@ function M.flash_cmd(ctx)
     return utils.tbl_join(cmd, ' ')
 end
 
+function M.console_cmd(ctx)
+    local params = ctx.params
+    local cmd = { 'mos console' }
+
+    if params ~= nil then
+        if params.port then table.insert(cmd, "--port " .. params.port) end
+    end
+
+    return utils.tbl_join(cmd, ' ')
+end
+
 M.register = function()
     settings.project_types.mongoose = {
         name = "Mongoose OS",
@@ -54,7 +65,8 @@ M.register = function()
                 params = M.build_params,
                 errorformat = M.build_errorformat
             },
-            flash = { name = "Flash", cmd = M.flash_cmd }
+            flash = { name = "Flash", cmd = M.flash_cmd },
+            console = { name = "Console", cmd = M.console_cmd }
         },
         patterns = { 'mos.yml' },
         on_attach = nil,
