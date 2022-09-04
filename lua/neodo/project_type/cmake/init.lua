@@ -1,6 +1,6 @@
 local M = {}
 
-local log = require("neodo.log")
+local notify = require("neodo.notify")
 local compilers = require("neodo.compilers")
 local config = require("neodo.project_type.cmake.config")
 local commands = require("neodo.project_type.cmake.commands")
@@ -20,7 +20,7 @@ M.register = function()
                     if result then
                         load_config()
                     else
-                        log.error("CMake project_type needs project data_path, but cannot be created.")
+                        notify.error("CMake project_type needs project data_path, but cannot be created.")
                     end
                 end)
             else

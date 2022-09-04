@@ -2,7 +2,6 @@ local M = {}
 
 local global_settings = require("neodo.settings")
 local notify = require("neodo.notify")
-local log = require("neodo.log")
 local uuid_generator = require("neodo.uuid")
 local os = require("os")
 
@@ -139,7 +138,7 @@ end
 local function start_cmd(command, project, project_type)
     local cmd = get_cmd_string(command, project, project_type)
     if cmd == nil then
-        log.error("Cannot run command, cmd incorrect")
+        notify.error("Cannot run command, cmd incorrect")
         return false
     end
 
@@ -202,7 +201,7 @@ end
 
 function M.run_project_command(command, project, project_type)
     if command_still_running(command) then
-        log.warning("Command already started")
+        notify.warning("Command already started")
         return false
     end
 
@@ -216,7 +215,7 @@ function M.run_project_command(command, project, project_type)
         return true
     end
 
-    log.error("No 'fn' or 'cmd' defined in given command")
+    notify.error("No 'fn' or 'cmd' defined in given command")
     return false
 end
 

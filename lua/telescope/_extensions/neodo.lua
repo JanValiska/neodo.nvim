@@ -9,7 +9,7 @@ local pickers = require("telescope.pickers")
 local telescope_config = require("telescope.config").values
 local actions = require("telescope.actions")
 local projects = require('neodo.projects')
-local log = require('neodo.log')
+local notify = require('neodo.notify')
 
 ---Main entrypoint for Telescope.
 ---@param opts table
@@ -17,7 +17,7 @@ local function neodo_entry_point(opts)
     opts = opts or {}
 
     if vim.b.neodo_project_hash == nil then
-        log.warning('Buffer not attached to any project')
+        notify.warning('Buffer not attached to any project')
         return
     end
 
@@ -40,7 +40,7 @@ local function neodo_entry_point(opts)
             end
         }):find()
     else
-        log.warning("No commands defined for current project")
+        notify.warning("No commands defined for current project")
     end
 
 end

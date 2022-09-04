@@ -1,28 +1,24 @@
 local M = {}
 
-local notify = require("notify")
-
-local notification_timeout = 2500
-
-local function notify_impl(text, header, category)
-    if header then
-        header = "Neodo: " .. header
+local function notify_impl(text, title, category)
+    if title then
+        title = "Neodo: " .. title
+    else
+        title = "Neodo"
     end
-    vim.schedule(function()
-        notify(text, category, { title = header, timeout = notification_timeout })
-    end)
+    vim.notify(text, category, { title = title })
 end
 
 function M.info(text, header)
-    notify_impl(text, header, nil)
+    notify_impl(text, header, vim.log.levels.INFO)
 end
 
 function M.warning(text, header)
-    notify_impl(text, header, "warning")
+    notify_impl(text, header, vim.log.levels.WARN)
 end
 
 function M.error(text, header)
-    notify_impl(text, header, "error")
+    notify_impl(text, header, vim.log.levels.ERROR)
 end
 
 return M

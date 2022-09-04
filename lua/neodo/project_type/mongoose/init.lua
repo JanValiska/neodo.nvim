@@ -3,7 +3,7 @@ local M = {}
 local utils = require 'neodo.utils'
 local settings = require 'neodo.settings'
 local compilers = require("neodo.compilers")
-local log = require("neodo.log")
+local notify = require("neodo.notify")
 
 function M.build_cmd(ctx)
     local params = ctx.params
@@ -13,7 +13,7 @@ function M.build_cmd(ctx)
 
     -- Check platform param
     if params.platform == nil then
-        log.error("Parameter '--platform' missing", "Mongoose OS")
+        notify.error("Parameter '--platform' missing", "Mongoose OS")
         return nil
     else
         table.insert(cmd, "--platform " .. params.platform)

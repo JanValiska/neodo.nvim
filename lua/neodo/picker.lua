@@ -1,7 +1,7 @@
 local M = {}
 
 local projects = require('neodo.projects')
-local log = require 'neodo.log'
+local notify = require 'neodo.notify'
 
 function M.pick_command()
     local project = projects[vim.b.neodo_project_hash]
@@ -20,7 +20,7 @@ function M.pick_command()
             project.run(selection.key)
         end)
     else
-        log.warning("No commands defined for current project")
+        notify.warning("No commands defined for current project")
     end
 end
 

@@ -3,7 +3,6 @@ local M = {}
 local configuration = require("neodo.configuration")
 local global_settings = require("neodo.settings")
 local root = require("neodo.root")
-local log = require("neodo.log")
 local notify = require("neodo.notify")
 
 local picker = require("neodo.picker")
@@ -199,7 +198,7 @@ end
 -- called by user code to execute command with given key for current buffer
 function M.run(command_key)
     if vim.b.neodo_project_hash == nil then
-        log.warning("Buffer not attached to any project")
+        notify.warning("Buffer not attached to any project")
         return
     end
     projects[vim.b.neodo_project_hash].run(command_key)
@@ -207,7 +206,7 @@ end
 
 function M.run_last()
     if vim.b.neodo_project_hash == nil then
-        log.warning("Buffer not attached to any project")
+        notify.warning("Buffer not attached to any project")
         return
     end
     projects[vim.b.neodo_project_hash].run_last_command()
@@ -215,7 +214,7 @@ end
 
 function M.neodo()
     if vim.b.neodo_project_hash == nil then
-        log.warning("Buffer not attached to any project")
+        notify.warning("Buffer not attached to any project")
         return
     else
         picker.pick_command()
@@ -226,7 +225,7 @@ function M.edit_project_settings()
     local project_hash = vim.b.neodo_project_hash
 
     if project_hash == nil then
-        log.warning("Cannot edit project settings. Current buffer is not part of project.")
+        notify.warning("Cannot edit project settings. Current buffer is not part of project.")
         return
     end
 
@@ -239,7 +238,7 @@ function M.edit_project_settings()
             if res then
                 vim.api.nvim_exec(":e " .. project.config_file(), false)
             else
-                log.error("Cannot create config file")
+                notify.error("Cannot create config file")
             end
         end)
     end

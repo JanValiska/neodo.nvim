@@ -1,4 +1,4 @@
-local log = require('neodo.log')
+local notify = require('neodo.notify')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
 local configuration = require('neodo.configuration')
@@ -59,13 +59,13 @@ local function command_enabled(command, project, project_type)
 end
 
 local function table_copy(datatable)
-  local new_datatable={}
-  if type(datatable)=="table" then
-    for k,v in pairs(datatable) do new_datatable[k]=table_copy(v) end
-  else
-    new_datatable=datatable
-  end
-  return new_datatable
+    local new_datatable = {}
+    if type(datatable) == "table" then
+        for k, v in pairs(datatable) do new_datatable[k] = table_copy(v) end
+    else
+        new_datatable = datatable
+    end
+    return new_datatable
 end
 
 function M.new(path, project_types_keys)
@@ -139,7 +139,7 @@ function M.new(path, project_types_keys)
 
     function p.run(command_key)
         if type(command_key) ~= "string" or command_key == '' then
-            log.warning("Wrong command key")
+            notify.warning("Wrong command key")
             return
         end
 
@@ -154,7 +154,7 @@ function M.new(path, project_types_keys)
         end
 
         if not command_enabled(command, p, project_type) then
-            log.warning("Command disabled")
+            notify.warning("Command disabled")
             return
         end
 
@@ -165,7 +165,7 @@ function M.new(path, project_types_keys)
 
     function p.run_last_command()
         if not self.last_command then
-            log.warning("No last command defined")
+            notify.warning("No last command defined")
             return
         end
         p.run(self.last_command)
@@ -204,9 +204,15 @@ function M.new(path, project_types_keys)
             if project_type.commands then
                 for command_key, command in pairs(project_type.commands) do
                     if command_enabled(command, p, project_type) then
+                        local pt_name = project_type_key
+                        if type(project_type.name) == "string" then
+                            pt_name = project_type.name
+                        elseif type(project_type.name) == "function" then
+                            pt_name = project_type.name()
+                        end
                         table.insert(keys_names,
                             { key = project_type_key .. "." .. command_key,
-                                name = project_type.name .. ": " .. command.name })
+                                name = pt_name .. ": " .. command.name })
                     end
                 end
             end

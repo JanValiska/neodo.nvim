@@ -1,7 +1,7 @@
-local log = require('neodo.log')
-local M = {}
-
 local settings = require 'neodo.settings'
+local notify = require('neodo.notify')
+
+local M = {}
 
 M.make_cmd = function(ctx)
     local args = ctx.params
@@ -13,7 +13,7 @@ M.make_cmd = function(ctx)
     elseif type(args) == "string" then
         cmd = cmd .. " " .. args
     else
-        log.warning("Unknown params type")
+        notify.warning("Unknown params type")
     end
     return cmd
 end
