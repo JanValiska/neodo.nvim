@@ -84,6 +84,12 @@ M.register = function()
                 cmd = commands.conan_install,
                 enabled = commands.conan_install_enabled,
             },
+            select_conan_profile = {
+                name = "Select conan profile",
+                notify = false,
+                fn = commands.select_conan_profile,
+                enabled = commands.select_conan_profile_enabled,
+            },
             show_cache_variables = {
                 name = "Show cache variables",
                 cmd = commands.show_cache_variables,
