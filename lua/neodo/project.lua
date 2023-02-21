@@ -140,7 +140,6 @@ function M.new(path, project_types_keys)
 
     function p.run(command_key)
         if type(command_key) ~= 'string' or command_key == '' then
-            print(command_key)
             notify.warning('Wrong command key')
             return
         end
@@ -193,7 +192,6 @@ function M.new(path, project_types_keys)
         if self.on_attach and type(self.on_attach) == 'function' then
             self.on_attach({ project = p })
         end
-        print(vim.inspect(self))
     end
 
     function p.get_commands_keys_names()

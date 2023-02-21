@@ -11,11 +11,11 @@ function M.get_selected_profile(project)
 end
 
 function M.switch_compile_commands(profile)
-    if profile.configured then
+    if profile:is_configured() then
         if fs.file_exists("compile_commands.json") then
             fs.delete("compile_commands.json")
         end
-        fs.symlink(profile.build_dir .. "/compile_commands.json", "compile_commands.json")
+        fs.symlink(profile:get_build_dir() .. "/compile_commands.json", "compile_commands.json")
     end
 end
 

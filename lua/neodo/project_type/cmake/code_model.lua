@@ -1,13 +1,12 @@
-local fs = require("neodo.file")
-local notify = require("neodo.notify")
+local fs = require('neodo.file')
+local notify = require('neodo.notify')
 
-local base_api_dir = fs.join_path(".cmake", "api", "v1")
-local base_query_dir = fs.join_path(base_api_dir, "query")
-local base_reply_dir = fs.join_path(base_api_dir, "reply")
-local base_codemodel_file = "codemodel-v2"
+local base_api_dir = fs.join_path('.cmake', 'api', 'v1')
+local base_query_dir = fs.join_path(base_api_dir, 'query')
+local base_reply_dir = fs.join_path(base_api_dir, 'reply')
+local base_codemodel_file = 'codemodel-v2'
 
-local CodeModel = {
-}
+local CodeModel = {}
 
 function CodeModel:write_query()
     if not fs.dir_exists(self.query_dir) then
@@ -23,7 +22,7 @@ function CodeModel:load_model_file(path, callback)
     local full_path = fs.join_path(self.reply_dir, path)
     fs.read(full_path, 438, function(err, data)
         if err then
-            notify.error("Cannot read code model file: " .. path)
+            notify.error('Cannot read code model file: ' .. path)
             return
         else
             local model = vim.fn.json_decode(data)
@@ -34,7 +33,7 @@ end
 
 local function find_index_file(reply_dir)
     local items = fs.dirlist(reply_dir)
-    local pattern = "^index%-.*%.json$"
+    local pattern = '^index%-.*%.json$'
     for _, item in ipairs(items) do
         if string.match(item, pattern) then
             return item
@@ -54,20 +53,30 @@ function CodeModel:parse_target_model(model)
     self.targets[model.name] = { name = model.name, type = model.type, paths = paths }
 end
 
-function CodeModel:read_reply()
+function CodeModel:read_reply(callback)
     local index = find_index_file(self.reply_dir)
     if index ~= nil then
         self:load_model_file(index, function(index_model)
-            self:load_model_file(index_model.reply["codemodel-v2"].jsonFile, function(code_model)
+            self:load_model_file(index_model.reply['codemodel-v2'].jsonFile, function(code_model)
+                local refs = 0
                 for _, configuration in ipairs(code_model.configurations) do
                     for _, target in ipairs(configuration.targets) do
+                        refs = refs + 1
                         self:load_model_file(target.jsonFile, function(target_model)
                             self:parse_target_model(target_model)
+                            refs = refs - 1
+                            if refs == 0 and type(callback) == "function" then
+                                callback(true)
+                            end
                         end)
                     end
                 end
             end)
         end)
+    else
+        if type(callback) == 'function' then
+            callback(false)
+        end
     end
 end
 
@@ -80,7 +89,7 @@ function CodeModel:new(build_dir)
         build_dir = build_dir,
         query_dir = fs.join_path(build_dir, base_query_dir),
         reply_dir = fs.join_path(build_dir, base_reply_dir),
-        targets = {}
+        targets = {},
     }
     setmetatable(o, self)
     self.__index = self
