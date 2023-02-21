@@ -49,7 +49,7 @@ function CodeModel:parse_target_model(model)
     end
     local paths = {}
     for _, a in ipairs(model.artifacts) do
-        table.insert(paths, fs.join_path(self.build_dir, a.path))
+        table.insert(paths, a.path)
     end
     self.targets[model.name] = { name = model.name, type = model.type, paths = paths }
 end

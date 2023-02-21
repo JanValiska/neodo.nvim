@@ -38,8 +38,6 @@ function M.load(project, cmake_project)
             end
         end
     end)
-
-    cmake_project.config.has_conan = fs.file_exists("conanfile.txt")
 end
 
 function M.save(project, cmake_project)

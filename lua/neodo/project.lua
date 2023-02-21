@@ -2,7 +2,7 @@ local notify = require('neodo.notify')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
 local configuration = require('neodo.configuration')
-local global_settings = require("neodo.settings")
+local global_settings = require('neodo.settings')
 
 local M = {}
 
@@ -10,7 +10,7 @@ local function merge_custom_config(config, custom_config)
     if custom_config == nil then
         return config
     end
-    return vim.tbl_deep_extend("force", config, custom_config)
+    return vim.tbl_deep_extend('force', config, custom_config)
 end
 
 local function strip_user_project_settings(user_settings)
@@ -52,7 +52,7 @@ local function split_command_key(command_key)
 end
 
 local function command_enabled(command, project, project_type)
-    if command.enabled and type(command.enabled) == "function" then
+    if command.enabled and type(command.enabled) == 'function' then
         return command.enabled({ params = command.params, project = project, project_type = project_type })
     end
     return true
@@ -60,8 +60,10 @@ end
 
 local function table_copy(datatable)
     local new_datatable = {}
-    if type(datatable) == "table" then
-        for k, v in pairs(datatable) do new_datatable[k] = table_copy(v) end
+    if type(datatable) == 'table' then
+        for k, v in pairs(datatable) do
+            new_datatable[k] = table_copy(v)
+        end
     else
         new_datatable = datatable
     end
@@ -79,7 +81,7 @@ function M.new(path, project_types_keys)
         on_attach = nil,
         buffer_on_attach = nil,
         project_types = {},
-        commands = {}
+        commands = {},
     }
 
     for _, project_type_key in ipairs(project_types_keys) do
@@ -95,7 +97,6 @@ function M.new(path, project_types_keys)
         strip_user_project_settings(user_project_settings)
         self = merge_custom_config(self, user_project_settings)
     end
-
 
     fix_command_names(self)
 
@@ -138,8 +139,9 @@ function M.new(path, project_types_keys)
     end
 
     function p.run(command_key)
-        if type(command_key) ~= "string" or command_key == '' then
-            notify.warning("Wrong command key")
+        if type(command_key) ~= 'string' or command_key == '' then
+            print(command_key)
+            notify.warning('Wrong command key')
             return
         end
 
@@ -154,7 +156,7 @@ function M.new(path, project_types_keys)
         end
 
         if not command_enabled(command, p, project_type) then
-            notify.warning("Command disabled")
+            notify.warning('Command disabled')
             return
         end
 
@@ -165,7 +167,7 @@ function M.new(path, project_types_keys)
 
     function p.run_last_command()
         if not self.last_command then
-            notify.warning("No last command defined")
+            notify.warning('No last command defined')
             return
         end
         p.run(self.last_command)
@@ -173,31 +175,32 @@ function M.new(path, project_types_keys)
 
     function p.buffer_on_attach(bufnr)
         for _, t in pairs(self.project_types) do
-            if t.buffer_on_attach and type(t.buffer_on_attach) == "function" then
+            if t.buffer_on_attach and type(t.buffer_on_attach) == 'function' then
                 t.buffer_on_attach({ bufnr = bufnr, project = p, project_type = t })
             end
         end
-        if self.buffer_on_attach and type(self.buffer_on_attach) == "function" then
+        if self.buffer_on_attach and type(self.buffer_on_attach) == 'function' then
             self.buffer_on_attach({ bufnr = bufnr, project = p })
         end
     end
 
     function p.on_attach()
         for _, t in pairs(self.project_types) do
-            if t.on_attach and type(t.on_attach) == "function" then
+            if t.on_attach and type(t.on_attach) == 'function' then
                 t.on_attach({ project = p, project_type = t })
             end
         end
-        if self.on_attach and type(self.on_attach) == "function" then
+        if self.on_attach and type(self.on_attach) == 'function' then
             self.on_attach({ project = p })
         end
+        print(vim.inspect(self))
     end
 
     function p.get_commands_keys_names()
         local keys_names = {}
         for key, command in pairs(self.commands) do
             if command_enabled(command, p) then
-                table.insert(keys_names, { key = key, name = "Custom: " .. command.name })
+                table.insert(keys_names, { key = key, name = 'Custom: ' .. command.name })
             end
         end
         for project_type_key, project_type in pairs(self.project_types) do
@@ -205,14 +208,15 @@ function M.new(path, project_types_keys)
                 for command_key, command in pairs(project_type.commands) do
                     if command_enabled(command, p, project_type) then
                         local pt_name = project_type_key
-                        if type(project_type.name) == "string" then
+                        if type(project_type.name) == 'string' then
                             pt_name = project_type.name
-                        elseif type(project_type.name) == "function" then
+                        elseif type(project_type.name) == 'function' then
                             pt_name = project_type.name()
                         end
-                        table.insert(keys_names,
-                            { key = project_type_key .. "." .. command_key,
-                                name = pt_name .. ": " .. command.name })
+                        table.insert(
+                            keys_names,
+                            { key = project_type_key .. '.' .. command_key, name = pt_name .. ': ' .. command.name }
+                        )
                     end
                 end
             end
