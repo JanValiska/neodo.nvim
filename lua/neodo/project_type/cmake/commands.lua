@@ -12,25 +12,36 @@ function M.create_profile(ctx)
     local cmake_project = ctx.project_type
     picker.pick('Select build type: ', { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' }, function(build_type)
         if cmake_project.build_configurations then
+            local create_profile = function(build_configuration_key)
+                local profile = Profile:new(cmake_project)
+                profile:load_default(build_type, build_configuration_key)
+                local profile_key = profile:get_key()
+                cmake_project.config.profiles[profile_key] = profile
+                cmake_project.config.selected_profile = profile_key
+                config.save(ctx.project, cmake_project)
+                if cmake_project.has_conan and not profile:has_conan_profile() then
+                    M.select_conan_profile(ctx)
+                elseif cmake_project.autoconfigure == true then
+                    ctx.project.run('cmake.configure')
+                end
+            end
+
+            -- in case that there is only one build configuration
+            if vim.tbl_count(cmake_project.build_configurations) == 1 then
+                for key, _ in pairs(cmake_project.build_configurations) do
+                    create_profile(key)
+                    return
+                end
+            end
+
+            -- otherwise pick configuration
             local function format_build_configuration(item)
                 return cmake_project.build_configurations[item].name
             end
             picker.pick(
                 'Select build configuration:',
                 vim.tbl_keys(cmake_project.build_configurations),
-                function(build_configuration_key)
-                    local profile = Profile:new(cmake_project)
-                    profile:load_default(build_type, build_configuration_key)
-                    local profile_key = profile:get_key()
-                    cmake_project.config.profiles[profile_key] = profile
-                    cmake_project.config.selected_profile = profile_key
-                    config.save(ctx.project, cmake_project)
-                    if cmake_project.has_conan and not profile:has_conan_profile() then
-                        M.select_conan_profile(ctx)
-                    elseif cmake_project.autoconfigure == true then
-                        cmake_project.run('cmake.configure')
-                    end
-                end,
+                create_profile,
                 format_build_configuration
             )
         else
@@ -58,14 +69,18 @@ end
 
 function M.delete_profile(ctx)
     local cmake_project = ctx.project_type
+    local function format_names(profile_key)
+        return cmake_project.config.profiles[profile_key]:get_name()
+    end
     picker.pick('Select profile to delete: ', vim.tbl_keys(cmake_project.config.profiles), function(profile_key)
         local profile = cmake_project.config.profiles[profile_key]
         fs.delete(profile:get_build_dir())
         cmake_project.config.profiles[profile_key] = nil
-        cmake_project.config.selected_profile = nil
+        if profile_key == cmake_project.config.selected_profile then
+            cmake_project.config.selected_profile = nil
+        end
         config.save(ctx.project, cmake_project)
-        print(vim.inspect(cmake_project))
-    end)
+    end, format_names)
 end
 
 function M.delete_profile_enabled(ctx)
@@ -250,7 +265,7 @@ function M.show_cache_variables(ctx)
     if not profile then
         return
     end
-    return 'cmake -B ' .. profile.build_dir .. ' -L'
+    return 'cmake -B ' .. profile:get_build_dir() .. ' -L'
 end
 
 function M.show_cache_variables_enabled(ctx)

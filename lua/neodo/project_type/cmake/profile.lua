@@ -54,13 +54,13 @@ function Profile:load_from_table(table)
     self.build_configuration_key = table.build_configuration_key
     self.build_configuration = self.project.build_configurations[self.build_configuration_key]
     self.name = table.name
-    self:set_conan_profile(table.conan_profile)
-    self:select_target(table.selected_target)
+    self.conan_profile = table.conan_profile
+    self.selected_target = table.selected_target
     self:set_configured()
 end
 
 function Profile:save_to_table()
-    local table = {
+    return {
         key = self.key,
         cmake_options = self.cmake_options,
         build_type = self.build_type,
@@ -70,7 +70,6 @@ function Profile:save_to_table()
         selected_target = self.selected_target,
         conan_profile = self.conan_profile,
     }
-    return table
 end
 
 function Profile:get_key()

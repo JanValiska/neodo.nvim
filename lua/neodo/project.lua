@@ -2,7 +2,6 @@ local notify = require('neodo.notify')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
 local configuration = require('neodo.configuration')
-local global_settings = require('neodo.settings')
 
 local M = {}
 
@@ -70,7 +69,7 @@ local function table_copy(datatable)
     return new_datatable
 end
 
-function M.new(path, project_types_keys)
+function M.new(global_settings, path, project_types_keys)
     -- private project properties(captured to public interface p)
     local self = {
         path = path,

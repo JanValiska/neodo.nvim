@@ -37,7 +37,11 @@ M.register = function()
         user_buffer_on_attach = nil,
         config = { selected_target = nil, selected_profile = nil, profiles = {} },
         code_models = {},
-        build_configurations = nil,
+        build_configurations = {
+            default = {
+                name = "Default",
+            }
+        },
         commands = {
             create_profile = {
                 name = 'Create profile',

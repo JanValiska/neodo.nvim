@@ -25,7 +25,7 @@ local function load_project(path, project_types_keys)
     if global_settings.load_project_notify then
         notify.info(path, "Loading project")
     end
-    local project = project_factory.new(path, project_types_keys)
+    local project = project_factory.new(global_settings, path, project_types_keys)
     project.on_attach()
     projects[project.hash()] = project
     return project
