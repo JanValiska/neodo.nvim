@@ -78,7 +78,7 @@ function M.new(global_settings, path, project_types_keys)
         config_file = nil,
         last_command = nil,
         on_attach = nil,
-        buffer_on_attach = nil,
+        buffer_on_attach = {},
         project_types = {},
         commands = {},
     }
@@ -94,6 +94,7 @@ function M.new(global_settings, path, project_types_keys)
     if self.config_file ~= nil then
         local user_project_settings = dofile(self.config_file) or {}
         strip_user_project_settings(user_project_settings)
+        -- TODO: Join buffer_on_attach  tables instead of overwrite
         self = merge_custom_config(self, user_project_settings)
     end
 
@@ -173,12 +174,20 @@ function M.new(global_settings, path, project_types_keys)
 
     function p.buffer_on_attach(bufnr)
         for _, t in pairs(self.project_types) do
-            if t.buffer_on_attach and type(t.buffer_on_attach) == 'function' then
-                t.buffer_on_attach({ bufnr = bufnr, project = p, project_type = t })
+            if t.buffer_on_attach and type(t.buffer_on_attach) == 'table' then
+                for _, f in ipairs(t.buffer_on_attach) do
+                    if type(f) == 'function' then
+                        f({ bufnr = bufnr, project = p, project_type = t })
+                    end
+                end
             end
         end
-        if self.buffer_on_attach and type(self.buffer_on_attach) == 'function' then
-            self.buffer_on_attach({ bufnr = bufnr, project = p })
+        if self.buffer_on_attach and type(self.buffer_on_attach) == 'table' then
+            for _, f in ipairs(self.buffer_on_attach) do
+                if type(f) == 'function' then
+                    f({ bufnr = bufnr, project = p })
+                end
+            end
         end
     end
 

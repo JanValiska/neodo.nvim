@@ -32,9 +32,7 @@ M.register = function()
         autoconfigure = true,
         conan_auto_install = true,
         has_conan = false,
-        user_on_attach = nil,
-        buffer_on_attach = nil,
-        user_buffer_on_attach = nil,
+        buffer_on_attach = {},
         config = { selected_target = nil, selected_profile = nil, profiles = {} },
         code_models = {},
         build_configurations = {
