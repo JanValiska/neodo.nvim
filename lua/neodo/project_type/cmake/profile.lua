@@ -39,8 +39,12 @@ function Profile:load_default(build_type, build_configuration_key)
     self.key = uuid()
     self.build_type = build_type
     self.build_configuration_key = build_configuration_key
-    self.build_configuration = self.project.build_configurations[self.build_configuration_key]
-    self.build_directory = 'build-' .. build_type .. '-' .. string.gsub(self.build_configuration.name, '%s+', '-')
+    self.build_configuration =
+        self.project.build_configurations[self.build_configuration_key]
+    self.build_directory = 'build-'
+        .. build_type
+        .. '-'
+        .. string.gsub(self.build_configuration_key, '%s+', '-')
     create_build_dir(self)
     create_code_model(self)
 end
@@ -52,7 +56,8 @@ function Profile:load_from_table(table)
     self.key = table.key
     self.build_type = table.build_type
     self.build_configuration_key = table.build_configuration_key
-    self.build_configuration = self.project.build_configurations[self.build_configuration_key]
+    self.build_configuration =
+        self.project.build_configurations[self.build_configuration_key]
     self.name = table.name
     self.conan_profile = table.conan_profile
     self.selected_target = table.selected_target
@@ -158,7 +163,11 @@ function Profile:get_build_selected_target_command()
     if not self.selected_target then
         return nil
     end
-    return 'cmake --build ' .. self.build_directory .. ' --target ' .. self.selected_target .. get_build_args(self)
+    return 'cmake --build '
+        .. self.build_directory
+        .. ' --target '
+        .. self.selected_target
+        .. get_build_args(self)
 end
 
 function Profile:set_conan_profile(profile)
@@ -176,6 +185,40 @@ end
 
 function Profile:has_conan_profile()
     return self.build_configuration.conan_profile ~= nil or self.conan_profile ~= nil
+end
+
+function Profile:get_info_node()
+    local NuiTree = require('nui.tree')
+
+    local function get_targets_info()
+        local targets = self:get_targets()
+        if not targets or vim.tbl_count(targets) == 0 then
+            return NuiTree.Node({ text = 'No targets defined' })
+        end
+
+        local targetNodes = {}
+        for _, target in pairs(targets) do
+            table.insert(
+                targetNodes,
+                NuiTree.Node({ text = target.name .. '(' .. target.type .. ')' })
+            )
+        end
+        return NuiTree.Node({ text = 'Targets:' }, targetNodes)
+    end
+    return {
+        NuiTree.Node({ text = 'UUID: ' .. self.key }),
+        NuiTree.Node({ text = 'Build directory: ' .. self.build_directory }),
+        NuiTree.Node({ text = 'Build configuration: ' .. self.build_configuration.name }),
+        NuiTree.Node({ text = 'Build type: ' .. self.build_type }),
+        NuiTree.Node({
+            text = 'Configured: ' .. (self:is_configured() and 'Yes' or 'No'),
+        }),
+        NuiTree.Node({
+            text = 'Conan profile: '
+                .. (self:has_conan_profile() and self:get_conan_profile() or 'no profile'),
+        }),
+        get_targets_info(),
+    }
 end
 
 return Profile

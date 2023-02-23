@@ -10,44 +10,48 @@ local Profile = require('neodo.project_type.cmake.profile')
 
 function M.create_profile(ctx)
     local cmake_project = ctx.project_type
-    picker.pick('Select build type: ', { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' }, function(build_type)
-        if cmake_project.build_configurations then
-            local create_profile = function(build_configuration_key)
-                local profile = Profile:new(cmake_project)
-                profile:load_default(build_type, build_configuration_key)
-                local profile_key = profile:get_key()
-                cmake_project.config.profiles[profile_key] = profile
-                cmake_project.config.selected_profile = profile_key
-                config.save(ctx.project, cmake_project)
-                if cmake_project.has_conan and not profile:has_conan_profile() then
-                    M.select_conan_profile(ctx)
-                elseif cmake_project.autoconfigure == true then
-                    ctx.project.run('cmake.configure')
+    picker.pick(
+        'Select build type: ',
+        { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' },
+        function(build_type)
+            if cmake_project.build_configurations then
+                local create_profile = function(build_configuration_key)
+                    local profile = Profile:new(cmake_project)
+                    profile:load_default(build_type, build_configuration_key)
+                    local profile_key = profile:get_key()
+                    cmake_project.config.profiles[profile_key] = profile
+                    cmake_project.config.selected_profile = profile_key
+                    config.save(ctx.project, cmake_project)
+                    if cmake_project.has_conan and not profile:has_conan_profile() then
+                        M.select_conan_profile(ctx)
+                    elseif cmake_project.autoconfigure == true then
+                        ctx.project.run('cmake.configure')
+                    end
                 end
-            end
 
-            -- in case that there is only one build configuration
-            if vim.tbl_count(cmake_project.build_configurations) == 1 then
-                for key, _ in pairs(cmake_project.build_configurations) do
-                    create_profile(key)
-                    return
+                -- in case that there is only one build configuration
+                if vim.tbl_count(cmake_project.build_configurations) == 1 then
+                    for key, _ in pairs(cmake_project.build_configurations) do
+                        create_profile(key)
+                        return
+                    end
                 end
-            end
 
-            -- otherwise pick configuration
-            local function format_build_configuration(item)
-                return cmake_project.build_configurations[item].name
+                -- otherwise pick configuration
+                local function format_build_configuration(item)
+                    return cmake_project.build_configurations[item].name
+                end
+                picker.pick(
+                    'Select build configuration:',
+                    vim.tbl_keys(cmake_project.build_configurations),
+                    create_profile,
+                    format_build_configuration
+                )
+            else
+                notify.error('No build configurations found. Check config/instalation.')
             end
-            picker.pick(
-                'Select build configuration:',
-                vim.tbl_keys(cmake_project.build_configurations),
-                create_profile,
-                format_build_configuration
-            )
-        else
-            notify.error('No build configurations found. Check config/instalation.')
         end
-    end)
+    )
 end
 
 function M.select_profile(ctx)
@@ -55,12 +59,17 @@ function M.select_profile(ctx)
     local function format_names(profile_key)
         return cmake_project.config.profiles[profile_key]:get_name()
     end
-    picker.pick('Select profile: ', vim.tbl_keys(cmake_project.config.profiles), function(profile_key)
-        cmake_project.config.selected_profile = profile_key
-        local profile = cmake_project.config.profiles[profile_key]
-        functions.switch_compile_commands(profile)
-        config.save(ctx.project, cmake_project)
-    end, format_names)
+    picker.pick(
+        'Select profile: ',
+        vim.tbl_keys(cmake_project.config.profiles),
+        function(profile_key)
+            cmake_project.config.selected_profile = profile_key
+            local profile = cmake_project.config.profiles[profile_key]
+            functions.switch_compile_commands(profile)
+            config.save(ctx.project, cmake_project)
+        end,
+        format_names
+    )
 end
 
 function M.select_profile_enabled(ctx)
@@ -72,15 +81,20 @@ function M.delete_profile(ctx)
     local function format_names(profile_key)
         return cmake_project.config.profiles[profile_key]:get_name()
     end
-    picker.pick('Select profile to delete: ', vim.tbl_keys(cmake_project.config.profiles), function(profile_key)
-        local profile = cmake_project.config.profiles[profile_key]
-        fs.delete(profile:get_build_dir())
-        cmake_project.config.profiles[profile_key] = nil
-        if profile_key == cmake_project.config.selected_profile then
-            cmake_project.config.selected_profile = nil
-        end
-        config.save(ctx.project, cmake_project)
-    end, format_names)
+    picker.pick(
+        'Select profile to delete: ',
+        vim.tbl_keys(cmake_project.config.profiles),
+        function(profile_key)
+            local profile = cmake_project.config.profiles[profile_key]
+            fs.delete(profile:get_build_dir())
+            cmake_project.config.profiles[profile_key] = nil
+            if profile_key == cmake_project.config.selected_profile then
+                cmake_project.config.selected_profile = nil
+            end
+            config.save(ctx.project, cmake_project)
+        end,
+        format_names
+    )
 end
 
 function M.delete_profile_enabled(ctx)
@@ -209,25 +223,30 @@ function M.run_selected_target_enabled(ctx)
     if not profile then
         return false
     end
-    return profile:has_selected_target() and profile:get_selected_target().type == 'EXECUTABLE'
+    return profile:has_selected_target()
+        and profile:get_selected_target().type == 'EXECUTABLE'
 end
 
 function M.select_conan_profile(ctx)
     local cmake_project = ctx.project_type
-    picker.pick('Select conan profile: ', utils.get_output('conan profile list'), function(conan_profile)
-        local profile = functions.get_selected_profile(cmake_project)
-        if not profile then
-            return
-        end
-        profile:set_conan_profile(conan_profile)
-        config.save(ctx.project, cmake_project)
+    picker.pick(
+        'Select conan profile: ',
+        utils.get_output('conan profile list'),
+        function(conan_profile)
+            local profile = functions.get_selected_profile(cmake_project)
+            if not profile then
+                return
+            end
+            profile:set_conan_profile(conan_profile)
+            config.save(ctx.project, cmake_project)
 
-        if cmake_project.conan_auto_install == true then
-            ctx.project.run('cmake.conan_install')
-        elseif cmake_project.autoconfigure == true then
-            ctx.project.run('cmake.configure')
+            if cmake_project.conan_auto_install == true then
+                ctx.project.run('cmake.conan_install')
+            elseif cmake_project.autoconfigure == true then
+                ctx.project.run('cmake.configure')
+            end
         end
-    end)
+    )
 end
 
 function M.select_conan_profile_enabled(ctx)
@@ -274,6 +293,38 @@ function M.show_cache_variables_enabled(ctx)
         return false
     end
     return profile:is_configured()
+end
+
+function M.get_info_node(ctx)
+    local NuiTree = require('nui.tree')
+    local cmake_project = ctx.project_type
+
+    local nodes = {}
+    table.insert(
+        nodes,
+        NuiTree.Node({
+            text = 'Has conan: ' .. (cmake_project.has_conan and 'Yes' or 'No'),
+        })
+    )
+
+    local selected = functions.get_selected_profile(cmake_project)
+
+    if vim.tbl_count(cmake_project.config.profiles) ~= 0 then
+        local profileNodes = {}
+        for key, profile in pairs(cmake_project.config.profiles) do
+            local profileNode =
+                NuiTree.Node({ text = profile:get_name() }, profile:get_info_node())
+            if profile == selected then
+                profileNode.text = profileNode.text .. ' (current)'
+            end
+            profileNode.id = key
+            table.insert(profileNodes, profileNode)
+        end
+        table.insert(nodes, NuiTree.Node({ text = 'Profiles:' }, profileNodes))
+    else
+        table.insert(nodes, 'No profile available')
+    end
+    return nodes
 end
 
 return M

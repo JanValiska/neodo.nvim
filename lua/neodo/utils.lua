@@ -109,4 +109,13 @@ function M.get_output(command)
     return output_lines
 end
 
+M.lines_insert_indented = function(lines, line, indent_level)
+    local indent_level = indent_level or 1
+    local indent_string = ''
+    for i=1,indent_level do
+        indent_string = indent_string .. '\t'
+    end
+    table.insert(lines, indent_string .. line)
+end
+
 return M

@@ -29,6 +29,7 @@ M.register = function()
                 load_config()
             end
         end,
+        get_info_node = commands.get_info_node,
         autoconfigure = true,
         conan_auto_install = true,
         has_conan = false,

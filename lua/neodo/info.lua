@@ -1,51 +1,133 @@
 local M = {}
 
-local projects = require("neodo.projects")
+local projects = require('neodo.projects')
+local NuiTree = require('nui.tree')
+local NuiPopup = require('nui.popup')
+local NuiLine = require('nui.line')
 
-local function print_project_types(project, lines)
-    for _, project_type in pairs(project.project_types()) do
-        lines[#lines + 1] = '\t\t' .. project_type.name
-    end
-end
-
-local function print_project(index, project, lines)
-    lines[#lines + 1] = index .. ". " .. project.path()
-    print_project_types(project, lines)
-end
-
-local function print_projects(output, pos)
-    local lines = {
-        "Loaded projects",
-        "---------------",
-    }
-    local index = 1
-    for _, project in pairs(projects) do
-        print_project(index, project, lines)
-        index = index + 1
-    end
-    vim.api.nvim_buf_set_lines(output, pos, pos, false, lines)
+local function make_popup()
+    return NuiPopup({
+        position = '50%',
+        size = {
+            width = 80,
+            height = 40,
+        },
+        enter = true,
+        focusable = true,
+        zindex = 50,
+        relative = 'editor',
+        border = {
+            padding = {
+                top = 2,
+                bottom = 2,
+                left = 3,
+                right = 3,
+            },
+            style = 'rounded',
+            text = {
+                top = ' Neodo info page ',
+            },
+        },
+        buf_options = {
+            modifiable = true,
+            readonly = false,
+        },
+        win_options = {
+            winblend = 10,
+            winhighlight = 'Normal:Normal,FloatBorder:FloatBorder',
+        },
+    })
 end
 
 M.show = function()
-    -- local current_buffer_project_hash = vim.b.neodo_project_hash
-    local height = vim.api.nvim_win_get_height(0) - 10
-    local width = vim.api.nvim_win_get_width(0) - 10
-    local wincfg = {
-        style = "minimal",
-        border = "rounded",
-        noautocmd = true,
-        relative = "editor",
-        height = height,
-        width = width,
-        row = vim.api.nvim_win_get_height(0) / 2 - height / 2 - 1,
-        col = vim.api.nvim_win_get_width(0) / 2 - width / 2 - 1,
-    }
-    local bufnr = vim.api.nvim_create_buf(false, true)
-    vim.keymap.set("n", "<esc>", function() vim.api.nvim_buf_delete(bufnr, {}) end, { buffer = bufnr })
-    vim.keymap.set("n", "q", function() vim.api.nvim_buf_delete(bufnr, {}) end, { buffer = bufnr })
-    print_projects(bufnr, 0)
-    vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
-    vim.api.nvim_open_win(bufnr, true, wincfg)
+    local function get_project(project)
+        local ptNodes = {}
+        local project_types = project.project_types()
+        if vim.tbl_count(project_types) ~= 0 then
+            for _, t in pairs(project_types) do
+                if type(t.get_info_node) == 'function' then
+                    table.insert(
+                        ptNodes,
+                        NuiTree.Node(
+                            { text = t.name },
+                            t.get_info_node({ project = project, project_type = t })
+                        )
+                    )
+                else
+                    table.insert(ptNodes, NuiTree.Node({ text = t.name }))
+                end
+            end
+        end
+        return NuiTree.Node({ text = project.path() }, ptNodes)
+    end
+
+    local function get_project_list()
+        local project_list = {}
+        for _, project in pairs(projects) do
+            table.insert(project_list, get_project(project))
+        end
+        return project_list
+    end
+
+    local popup = make_popup()
+    popup:mount()
+
+    local tree = NuiTree({
+        winid = popup.winid,
+        nodes = {
+            NuiTree.Node({ text = 'Projects' }, get_project_list()),
+        },
+        prepare_node = function(node)
+            local line = NuiLine()
+
+            line:append(string.rep('  ', node:get_depth() - 1))
+
+            if node:has_children() then
+                line:append(node:is_expanded() and ' ' or ' ', 'SpecialChar')
+            else
+                line:append('  ')
+            end
+
+            line:append(node.text)
+
+            return line
+        end,
+    })
+
+    for _, node in pairs(tree.nodes.by_id) do
+        node:expand()
+    end
+
+    local event = require('nui.utils.autocmd').event
+    popup:on({ event.BufLeave }, function()
+        popup:unmount()
+    end, { once = true })
+
+    local map_options = { noremap = true }
+
+    -- quit
+    popup:map('n', 'q', function()
+        popup:unmount()
+    end, map_options)
+
+    -- collapse
+    popup:map('n', '<cr>', function()
+        local node, linenr = tree:get_node()
+        if not node:has_children() then
+            node, linenr = tree:get_node(node:get_parent_id())
+        end
+        if node then
+            if node:is_expanded() then
+                node:collapse()
+            else
+                node:expand()
+            end
+            vim.api.nvim_win_set_cursor(popup.winid, { linenr, 0 })
+            tree:render()
+        end
+    end, map_options)
+
+    tree:render()
 end
 
 return M
