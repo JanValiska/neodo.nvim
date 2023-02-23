@@ -285,7 +285,7 @@ function M.setup(config)
     register_telescope_extension()
 
     if config then
-        global_settings = vim.tbl_deep_extend("force", global_settings, config)
+        global_settings = utils.tbl_deep_extend("force", global_settings, config)
     end
 
     local neodo_basic_autocommands_group = vim.api.nvim_create_augroup("NeodoBasicAutocommands", { clear = true })

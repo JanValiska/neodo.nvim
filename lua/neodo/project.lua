@@ -9,7 +9,7 @@ local function merge_custom_config(config, custom_config)
     if custom_config == nil then
         return config
     end
-    return vim.tbl_deep_extend('force', config, custom_config)
+    return utils.tbl_deep_extend('force', config, custom_config)
 end
 
 local function strip_user_project_settings(user_settings)
@@ -59,7 +59,7 @@ end
 
 local function table_copy(datatable)
     local new_datatable = {}
-    if type(datatable) == 'table' then
+    if type(datatable) == 'table' and not vim.tbl_islist(datatable) then
         for k, v in pairs(datatable) do
             new_datatable[k] = table_copy(v)
         end
@@ -94,7 +94,6 @@ function M.new(global_settings, path, project_types_keys)
     if self.config_file ~= nil then
         local user_project_settings = dofile(self.config_file) or {}
         strip_user_project_settings(user_project_settings)
-        -- TODO: Join buffer_on_attach  tables instead of overwrite
         self = merge_custom_config(self, user_project_settings)
     end
 
