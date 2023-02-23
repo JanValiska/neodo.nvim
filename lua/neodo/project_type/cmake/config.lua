@@ -1,7 +1,6 @@
 local M = {}
 
 local fs = require('neodo.file')
-local code_model = require('neodo.project_type.cmake.code_model')
 local notify = require('neodo.notify')
 local cmake_config_file_name = 'neodo_cmake_config.json'
 local functions = require('neodo.project_type.cmake.functions')
@@ -43,7 +42,7 @@ function M.load(project, cmake_project)
     end)
 end
 
-function M.save(project, cmake_project)
+function M.save(project, cmake_project, callback)
     if not project.data_path() then
         notify.error('Cannot save config, project config data path not found', 'NeoDo > CMake')
         return
@@ -66,7 +65,11 @@ function M.save(project, cmake_project)
 
     local config_file = project.data_path() .. '/' .. cmake_config_file_name
     fs.write(config_file, 444, vim.fn.json_encode(config), function()
+        -- TODO: check if config successully written
         notify.info('Configuration saved', 'NeoDo > CMake')
+        if callback and type(callback) == "function" then
+            callback(true)
+        end
     end)
 end
 

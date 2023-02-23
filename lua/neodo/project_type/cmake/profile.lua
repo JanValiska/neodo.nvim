@@ -16,10 +16,10 @@ local function create_code_model(self)
 end
 
 local function get_build_args(props)
-    if props.build_configuration.build_args then
-        return ' -- ' .. props.build_configuration.build_args
+    if not props.build_configuration or not props.build_configuration.build_args then
+        return ''
     end
-    return ''
+    return ' -- ' .. props.build_configuration.build_args
 end
 
 function Profile:new(project)
@@ -35,16 +35,14 @@ function Profile:new(project)
     return properties
 end
 
-function Profile:load_default(build_type, build_configuration_key)
+function Profile:load_default(name, build_directory, build_type, build_configuration_key)
     self.key = uuid()
     self.build_type = build_type
     self.build_configuration_key = build_configuration_key
     self.build_configuration =
         self.project.build_configurations[self.build_configuration_key]
-    self.build_directory = 'build-'
-        .. build_type
-        .. '-'
-        .. string.gsub(self.build_configuration_key, '%s+', '-')
+    self.build_directory = build_directory
+    self.name = name
     create_build_dir(self)
     create_code_model(self)
 end
@@ -96,7 +94,9 @@ function Profile:get_name()
     if self.name then
         return self.name
     end
-    return self.build_type .. '-' .. self.build_configuration.name
+    return self.build_type
+        .. '-'
+        .. ((self.build_configuration and self.build_configuration.name) or 'MISSING')
 end
 
 function Profile:set_name(name)
@@ -184,7 +184,8 @@ function Profile:get_conan_profile()
 end
 
 function Profile:has_conan_profile()
-    return self.build_configuration.conan_profile ~= nil or self.conan_profile ~= nil
+    return (self.build_configuration and self.build_configuration.conan_profile ~= nil)
+        or self.conan_profile ~= nil
 end
 
 function Profile:get_info_node()
@@ -208,7 +209,13 @@ function Profile:get_info_node()
     return {
         NuiTree.Node({ text = 'UUID: ' .. self.key }),
         NuiTree.Node({ text = 'Build directory: ' .. self.build_directory }),
-        NuiTree.Node({ text = 'Build configuration: ' .. self.build_configuration.name }),
+        NuiTree.Node({
+            text = 'Build configuration: '
+                .. (
+                    (self.build_configuration and self.build_configuration.name)
+                    or 'MISSING'
+                ),
+        }),
         NuiTree.Node({ text = 'Build type: ' .. self.build_type }),
         NuiTree.Node({
             text = 'Configured: ' .. (self:is_configured() and 'Yes' or 'No'),
