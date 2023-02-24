@@ -6,6 +6,14 @@ local M = {
     change_root_notify = false,
     load_project_notify = false,
     use_in_the_source_config = false,
+    commands = {
+        show_neodo_info = {
+            name = 'Show neodo info',
+            fn = function()
+                require('neodo.info').show()
+            end,
+        },
+    },
 }
 
 return M

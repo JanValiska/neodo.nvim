@@ -11,24 +11,26 @@ M.register = function()
     settings.project_types.cmake = {
         name = 'CMake',
         patterns = { 'CMakeLists.txt' },
-        on_attach = function(ctx)
-            local function load_config()
-                config.load(ctx.project, ctx.project_type)
-            end
-            ctx.project_type.has_conan = fs.file_exists("conanfile.txt")
+        on_attach = {
+            function(ctx)
+                local function load_config()
+                    config.load(ctx.project, ctx.project_type)
+                end
+                ctx.project_type.has_conan = fs.file_exists('conanfile.txt')
 
-            if not ctx.project.config_file() then
-                ctx.project.create_config_file(function(result)
-                    if result then
-                        load_config()
-                    else
-                        notify.error('CMake project_type needs project data_path, but cannot be created.')
-                    end
-                end)
-            else
-                load_config()
-            end
-        end,
+                if not ctx.project.config_file() then
+                    ctx.project.create_config_file(function(result)
+                        if result then
+                            load_config()
+                        else
+                            notify.error('CMake project_type needs project data_path, but cannot be created.')
+                        end
+                    end)
+                else
+                    load_config()
+                end
+            end,
+        },
         get_info_node = commands.get_info_node,
         autoconfigure = true,
         conan_auto_install = true,
@@ -38,8 +40,8 @@ M.register = function()
         code_models = {},
         build_configurations = {
             default = {
-                name = "Default",
-            }
+                name = 'Default',
+            },
         },
         commands = {
             create_profile = {
@@ -111,6 +113,21 @@ M.register = function()
                 cmd = commands.configure,
                 enabled = commands.configure_enabled,
                 on_success = commands.configure_on_success,
+            },
+            change_build_configuration = {
+                name = 'Change build configuration',
+                fn = commands.change_build_configuration,
+                enabled = commands.has_selected_profile,
+            },
+            rename_profile = {
+                name = 'Rename profile',
+                fn = commands.rename_profile,
+                enabled = commands.has_selected_profile,
+            },
+            change_build_directory = {
+                name = 'Change build directory',
+                fn = commands.change_build_directory,
+                enabled = commands.has_selected_profile,
             },
         },
         statusline = require('neodo.project_type.cmake.statusline').statusline,

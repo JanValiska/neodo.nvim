@@ -7,7 +7,7 @@ M.register = function()
         name = 'PHP(composer)',
         commands = {},
         patterns = { 'composer.json' },
-        on_attach = nil,
+        on_attach = {},
         buffer_on_attach = {},
     }
 end

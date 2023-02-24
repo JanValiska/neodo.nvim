@@ -67,7 +67,7 @@ function M.save(project, cmake_project, callback)
     fs.write(config_file, 444, vim.fn.json_encode(config), function()
         -- TODO: check if config successully written
         notify.info('Configuration saved', 'NeoDo > CMake')
-        if callback and type(callback) == "function" then
+        if type(callback) == "function" then
             callback(true)
         end
     end)

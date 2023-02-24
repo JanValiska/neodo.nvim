@@ -80,7 +80,7 @@ M.register = function()
             console = { name = 'Console', cmd = M.console_cmd },
         },
         patterns = { 'mos.yml' },
-        on_attach = nil,
+        on_attach = {},
         buffer_on_attach = {},
     }
 end

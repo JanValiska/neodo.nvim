@@ -77,20 +77,22 @@ function M.new(global_settings, path, project_types_keys)
         data_path = nil,
         config_file = nil,
         last_command = nil,
-        on_attach = nil,
+        commands = {},
+        on_attach = {},
         buffer_on_attach = {},
         project_types = {},
-        commands = {},
     }
 
+    -- apply global settings
+    self.commands = table_copy(global_settings.commands)
+    self.on_attach = vim.list_extend(self.on_attach, global_settings.on_attach or {})
+    self.buffer_on_attach = vim.list_extend(self.buffer_on_attach, global_settings.buffer_on_attach or {})
     for _, project_type_key in ipairs(project_types_keys) do
         self.project_types[project_type_key] = table_copy(global_settings.project_types[project_type_key])
     end
 
-    -- Check if config file and datapath exists
+    -- apply project specific settings
     self.config_file, self.data_path = configuration.get_project_config_and_datapath(path)
-
-    -- load project
     if self.config_file ~= nil then
         local user_project_settings = dofile(self.config_file) or {}
         strip_user_project_settings(user_project_settings)
@@ -192,12 +194,20 @@ function M.new(global_settings, path, project_types_keys)
 
     function p.on_attach()
         for _, t in pairs(self.project_types) do
-            if t.on_attach and type(t.on_attach) == 'function' then
-                t.on_attach({ project = p, project_type = t })
+            if t.on_attach and type(t.on_attach) == 'table' then
+                for _, f in ipairs(t.on_attach) do
+                    if type(f) == 'function' then
+                        f({ project = p, project_type = t })
+                    end
+                end
             end
         end
-        if self.on_attach and type(self.on_attach) == 'function' then
-            self.on_attach({ project = p })
+        if self.on_attach and type(self.on_attach) == 'table' then
+            for _, f in ipairs(self.on_attach) do
+                if type(f) == 'function' then
+                    f({ project = p })
+                end
+            end
         end
     end
 
@@ -205,7 +215,7 @@ function M.new(global_settings, path, project_types_keys)
         local keys_names = {}
         for key, command in pairs(self.commands) do
             if command_enabled(command, p) then
-                table.insert(keys_names, { key = key, name = 'Custom: ' .. command.name })
+                table.insert(keys_names, { key = key, name = 'Global: ' .. command.name })
             end
         end
         for project_type_key, project_type in pairs(self.project_types) do

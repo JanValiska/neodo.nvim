@@ -8,26 +8,62 @@ local functions = require('neodo.project_type.cmake.functions')
 local notify = require('neodo.notify')
 local Profile = require('neodo.project_type.cmake.profile')
 
+local function select_build_configuration(cmake_project, callback)
+    if type(callback) ~= 'function' then
+        return
+    end
+
+    local function format_build_configuration(item)
+        return cmake_project.build_configurations[item].name
+    end
+
+    picker.pick('Select build configuration:', vim.tbl_keys(cmake_project.build_configurations), function(key)
+        if not key then
+            notify.warning('Build configuration selection canceled.')
+            return
+        end
+        callback(key)
+    end, format_build_configuration)
+end
+
+local function check_profile_name_already_exists(cmake_project, name)
+    for _, profile in pairs(cmake_project.config.profiles) do
+        if name == profile:get_name() then
+            return true
+        end
+    end
+    return false
+end
+
+local function check_profile_with_build_directory_already_exists(cmake_project, directory)
+    for _, profile in pairs(cmake_project.config.profiles) do
+        if directory == profile:get_build_dir() then
+            return true
+        end
+    end
+    return false
+end
+
+local function save_and_reconfigure(ctx, profile)
+    config.save(ctx.project, ctx.project_type, function()
+        if ctx.project_type.has_conan then
+            if profile:has_conan_profile() then
+                ctx.project.run('cmake.conan_install')
+            else
+                ctx.project.run('cmake.select_conan_profile')
+            end
+        elseif ctx.project_type.autoconfigure == true then
+            ctx.project.run('cmake.configure')
+        end
+    end)
+end
+
+function M.has_selected_profile(ctx)
+    return functions.get_selected_profile(ctx.project_type) ~= nil
+end
+
 function M.create_profile(ctx)
     local cmake_project = ctx.project_type
-
-    local function check_profile_name_already_exists(name)
-        for _, profile in pairs(cmake_project.config.profiles) do
-            if name == profile:get_name() then
-                return true
-            end
-        end
-        return false
-    end
-
-    local function check_profile_with_build_directory_already_exists(directory)
-        for _, profile in pairs(cmake_project.config.profiles) do
-            if directory == profile:get_build_dir() then
-                return true
-            end
-        end
-        return false
-    end
 
     picker.pick('Select build type: ', { 'Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel' }, function(build_type)
         if cmake_project.build_configurations then
@@ -39,7 +75,7 @@ function M.create_profile(ctx)
                             return
                         end
 
-                        if check_profile_name_already_exists(confirmed_name) then
+                        if check_profile_name_already_exists(cmake_project, confirmed_name) then
                             notify.warning('Profile with same name already exists. Try new one.')
                             ask_profile_name(confirmed_name)
                             return
@@ -55,7 +91,12 @@ function M.create_profile(ctx)
                                     return
                                 end
 
-                                if check_profile_with_build_directory_already_exists(confirmed_directory) then
+                                if
+                                    check_profile_with_build_directory_already_exists(
+                                        cmake_project,
+                                        confirmed_directory
+                                    )
+                                then
                                     notify.warning('Profile with same build directory already exists. Try new one.')
                                     ask_build_directory(confirmed_directory)
                                     return
@@ -72,17 +113,7 @@ function M.create_profile(ctx)
                                 cmake_project.config.profiles[profile_key] = profile
                                 cmake_project.config.selected_profile = profile_key
                                 notify.info("New profile '" .. profile:get_name() .. "' selected as active")
-                                config.save(ctx.project, cmake_project, function()
-                                    if cmake_project.has_conan then
-                                        if profile:has_conan_profile() then
-                                            ctx.project.run('cmake.conan_install')
-                                        else
-                                            ctx.project.run('cmake.select_conan_profile')
-                                        end
-                                    elseif cmake_project.autoconfigure == true then
-                                        ctx.project.run('cmake.configure')
-                                    end
-                                end)
+                                save_and_reconfigure(ctx, profile)
                             end)
                         end
                         local suggested_build_directory = 'build-'
@@ -106,16 +137,7 @@ function M.create_profile(ctx)
                 end
             end
 
-            -- otherwise pick configuration
-            local function format_build_configuration(item)
-                return cmake_project.build_configurations[item].name
-            end
-            picker.pick(
-                'Select build configuration:',
-                vim.tbl_keys(cmake_project.build_configurations),
-                create_profile,
-                format_build_configuration
-            )
+            select_build_configuration(cmake_project, create_profile)
         else
             notify.error('No build configurations found. Check config/instalation.')
         end
@@ -346,6 +368,99 @@ function M.show_cache_variables_enabled(ctx)
         return false
     end
     return profile:is_configured()
+end
+
+function M.change_build_configuration(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
+    if not profile then
+        return false
+    end
+    select_build_configuration(ctx.project_type, function(build_configuration_key)
+        if not build_configuration_key then
+            notify.warning('Build configuration change canceled.')
+            return
+        end
+
+        if build_configuration_key == profile:get_build_configuration() then
+            notify.warning('Same build configuration selected. Canceling.')
+            return
+        end
+
+        profile:set_build_configuration(build_configuration_key)
+        notify.info(
+            "Build configuration changed to '"
+                .. ctx.project_type.build_configurations[build_configuration_key].name
+                .. "'"
+        )
+        save_and_reconfigure(ctx, profile)
+    end)
+end
+
+function M.rename_profile(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
+    if not profile then
+        return false
+    end
+    local function ask_profile_name(name)
+        vim.ui.input({ prompt = 'New profile name', default = name }, function(new_name)
+            if not new_name then
+                notify.warning('Profile name change canceled.')
+                return
+            end
+
+            if new_name == profile:get_name() then
+                notify.warning('Same profile name entered. Skipping rename.')
+                return
+            end
+
+            if check_profile_name_already_exists(ctx.project_type, new_name) then
+                notify.warning('Profile with same name already exists. Try new one.')
+                ask_profile_name(new_name)
+                return
+            end
+
+            profile:set_name(new_name)
+            notify.info("Profile name changed to '" .. new_name .. "'")
+            config.save(ctx.project, ctx.project_type)
+        end)
+    end
+    ask_profile_name(profile:get_name())
+end
+
+function M.change_build_directory(ctx)
+    local profile = functions.get_selected_profile(ctx.project_type)
+    if not profile then
+        return false
+    end
+    local function ask_dir_name(name)
+        vim.ui.input({ prompt = 'New build directory', default = name }, function(new_build_directory)
+            if not new_build_directory then
+                notify.warning('Build directory selection canceled.')
+                return
+            end
+
+            if new_build_directory == profile:get_build_dir() then
+                notify.info('Keeping old build directory.')
+                return
+            end
+
+            if check_profile_with_build_directory_already_exists(ctx.project_type, new_build_directory) then
+                notify.warning('Profile with same build directory already exists. Try new one.')
+                ask_dir_name(new_build_directory)
+                return
+            end
+
+            vim.ui.input({ prompt = 'Keep old build directory? y/n', default = 'y' }, function(answer)
+                if answer == 'n' or answer == 'N' then
+                    fs.delete(profile:get_build_dir())
+                end
+                profile:set_build_dir(new_build_directory)
+                notify.info("Build directory changed to '" .. new_build_directory .. "'")
+                save_and_reconfigure(ctx, profile)
+            end)
+        end)
+    end
+    ask_dir_name(profile:get_build_dir())
 end
 
 function M.get_info_node(ctx)
