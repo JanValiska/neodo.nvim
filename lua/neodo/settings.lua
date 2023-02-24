@@ -10,7 +10,7 @@ local M = {
         show_neodo_info = {
             name = 'Show neodo info',
             fn = function()
-                require('neodo.info').show()
+                require('neodo').info()
             end,
         },
     },

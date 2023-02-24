@@ -1,9 +1,9 @@
 local M = {}
 
-local global_settings = require("neodo.settings")
-local notify = require("neodo.notify")
-local uuid_generator = require("neodo.uuid")
-local os = require("os")
+local global_settings = require('neodo.settings')
+local notify = require('neodo.notify')
+local uuid_generator = require('neodo.uuid')
+local os = require('os')
 
 -- list of currently running jobs
 local command_contexts = {}
@@ -24,8 +24,12 @@ local function should_notify(command)
 end
 
 local function close_terminal_on_success(command, job)
-    if command.cmd and not command.background and
-        global_settings.terminal_close_on_success and not command.keep_terminal_open then
+    if
+        command.cmd
+        and not command.background
+        and global_settings.terminal_close_on_success
+        and not command.keep_terminal_open
+    then
         vim.api.nvim_buf_delete(job.buf_id, {})
     end
 end
@@ -39,25 +43,25 @@ end
 local function on_event(job_id, data, event)
     local uuid, command_context = find_command_by_job_id(job_id)
 
-    if event == "stdout" or event == "stderr" then
+    if event == 'stdout' or event == 'stderr' then
         if data then
             for _, line in ipairs(data) do
                 -- strip dos line endings
-                line = line:gsub("\r", "")
+                line = line:gsub('\r', '')
                 -- strip ANSI color codes
-                line = line:gsub("\27%[[0-9;mK]+", "")
+                line = line:gsub('\27%[[0-9;mK]+', '')
                 command_context.output_lines[#command_context.output_lines + 1] = line
             end
         end
         return
     end
 
-    if event == "exit" then
+    if event == 'exit' then
         local command = command_context.command
 
         if data == 0 then
             if should_notify(command) then
-                notify.info("SUCCESS", command.name)
+                notify.info('SUCCESS', command.name)
             end
             close_terminal_on_success(command, command_context)
             if command.on_success then
@@ -65,19 +69,19 @@ local function on_event(job_id, data, event)
             end
         else
             if data == 130 then
-                notify.warning("Interrupted (SIGINT)", command.name)
+                notify.warning('Interrupted (SIGINT)', command.name)
                 close_terminal_on_success(command, command_context)
             else
-                notify.error("FAILED with: " .. data, command.name)
+                notify.error('FAILED with: ' .. data, command.name)
 
                 close_terminal_on_fail(command, command_context)
                 if command.errorformat then
-                    vim.fn.setqflist({}, " ", {
+                    vim.fn.setqflist({}, ' ', {
                         title = command.cmd,
                         efm = command.errorformat or '%m',
                         lines = command_context.output_lines,
                     })
-                    vim.api.nvim_command("copen")
+                    vim.api.nvim_command('copen')
                     vim.cmd('wincmd p')
                 end
             end
@@ -89,27 +93,27 @@ end
 
 local function start_function_command(command, project, project_type)
     local ctx = { params = nil, project = project, project_type = project_type }
-    if command.params and type(command.params) == "function" then
+    if command.params and type(command.params) == 'function' then
         ctx.params = command.params(ctx)
     else
         ctx.params = command.params
     end
     if should_notify(command) then
-        notify.info("INVOKING", command.name)
+        notify.info('INVOKING', command.name)
     end
     local fuuid = uuid_generator()
     command_contexts[fuuid] = {
         started_at = os.time(),
         command = command,
         project = project,
-        project_type = project_type
+        project_type = project_type,
     }
     vim.schedule(function()
         command.fn(ctx)
         if should_notify(command) then
-            notify.info("DONE", command.name)
+            notify.info('DONE', command.name)
         end
-        if command.on_success and type(command.on_success) == "function" then
+        if command.on_success and type(command.on_success) == 'function' then
             ctx.params = nil
             command.on_success(ctx)
         end
@@ -118,19 +122,19 @@ local function start_function_command(command, project, project_type)
 end
 
 local function get_cmd_string(command, project, project_type)
-    if type(command.cmd) == "function" then
+    if command.cmd == nil then
+        return nil
+    end
+    if type(command.cmd) == 'function' then
         local ctx = { params = nil, project = project, project_type = project_type }
-        if command.params and type(command.params) == "function" then
+        if command.params and type(command.params) == 'function' then
             ctx.params = command.params(ctx)
         else
             ctx.params = command.params
         end
-        local result = command.cmd(ctx)
-        if result ~= nil then
-            return result
-        end
-    elseif type(command.cmd) == "string" then
-        return vim.fn.expandcmd(command.cmd)
+        return command.cmd(ctx)
+    elseif type(command.cmd) == 'string' then
+        return command.cmd
     end
     return nil
 end
@@ -138,11 +142,16 @@ end
 local function start_cmd(command, project, project_type)
     local cmd = get_cmd_string(command, project, project_type)
     if cmd == nil then
-        notify.error("Cannot run command, cmd incorrect")
+        notify.error('Cannot run command, cmd incorrect')
         return false
     end
 
+    local cwd = type(command.cwd) == 'function'
+            and command.cwd({ project = project, project_type = project_type })
+        or command.cwd
+        or project:get_path()
     local opts = {
+        cwd = cwd,
         on_stderr = on_event,
         on_stdout = on_event,
         on_exit = on_event,
@@ -160,23 +169,25 @@ local function start_cmd(command, project, project_type)
 
     local executor = nil
     if command.background then
-        executor = function() command_context.job_id = vim.fn.jobstart(cmd, opts) end
+        executor = function()
+            command_context.job_id = vim.fn.jobstart(cmd, opts)
+        end
     else
         executor = function()
-            vim.api.nvim_command("bot 15new")
+            vim.api.nvim_command('bot 15new')
             command_context.job_id = vim.fn.termopen(cmd, opts)
             vim.wo.number = false
             vim.wo.relativenumber = false
             command_context.buf_id = vim.fn.bufnr()
-            vim.api.nvim_buf_set_option(command_context.buf_id, "buflisted", false)
-            vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
+            vim.api.nvim_buf_set_option(command_context.buf_id, 'buflisted', false)
+            vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWinEnter' }, {
                 buffer = command_context.buf_id,
                 callback = function()
-                    vim.api.nvim_command("starti")
-                end
+                    vim.api.nvim_command('starti')
+                end,
             })
             vim.schedule(function()
-                vim.api.nvim_command("starti")
+                vim.api.nvim_command('starti')
             end)
         end
     end
@@ -186,7 +197,7 @@ local function start_cmd(command, project, project_type)
     command_contexts[uuid_generator()] = command_context
 
     if should_notify(command) then
-        notify.info(cmd, command.name)
+        notify.info("Starting", command.name)
     end
 end
 
@@ -201,11 +212,11 @@ end
 
 function M.run_project_command(command, project, project_type)
     if command_still_running(command) then
-        notify.warning("Command already started")
+        notify.warning('Command already started')
         return false
     end
 
-    vim.api.nvim_command("cclose")
+    vim.api.nvim_command('cclose')
 
     if command.fn then
         start_function_command(command, project, project_type)

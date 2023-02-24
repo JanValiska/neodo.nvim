@@ -7,7 +7,7 @@ local functions = require('neodo.project_type.cmake.functions')
 local Profile = require('neodo.project_type.cmake.profile')
 
 function M.load(project, cmake_project)
-    if not project.data_path() then
+    if not project:get_data_path() then
         return
     end
 
@@ -16,7 +16,7 @@ function M.load(project, cmake_project)
         return
     end
 
-    local config_file = fs.join_path(project.data_path(), cmake_config_file_name)
+    local config_file = fs.join_path(project:get_data_path(), cmake_config_file_name)
 
     fs.read(config_file, 438, function(err, data)
         if not err then
@@ -27,7 +27,7 @@ function M.load(project, cmake_project)
             }
             if config.profiles and type(config.profiles) == 'table' then
                 for key, profiletable in pairs(config.profiles) do
-                    local profile = Profile:new(cmake_project)
+                    local profile = Profile:new(project, cmake_project)
                     profile:load_from_table(profiletable)
                     cmake_project.config.profiles[key] = profile
                 end
@@ -43,7 +43,7 @@ function M.load(project, cmake_project)
 end
 
 function M.save(project, cmake_project, callback)
-    if not project.data_path() then
+    if not project:get_data_path() then
         notify.error('Cannot save config, project config data path not found', 'NeoDo > CMake')
         return
     end
@@ -63,7 +63,7 @@ function M.save(project, cmake_project, callback)
         end
     end
 
-    local config_file = project.data_path() .. '/' .. cmake_config_file_name
+    local config_file = project:get_data_path() .. '/' .. cmake_config_file_name
     fs.write(config_file, 444, vim.fn.json_encode(config), function()
         -- TODO: check if config successully written
         notify.info('Configuration saved', 'NeoDo > CMake')

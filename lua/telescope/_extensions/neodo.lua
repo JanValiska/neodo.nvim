@@ -34,7 +34,7 @@ local function neodo_entry_point(opts)
                 actions.select_default:replace(function(prompt_bufnr)
                     local selection = require 'telescope.actions.state'.get_selected_entry(prompt_bufnr)
                     actions.close(prompt_bufnr)
-                    project.run(selection.value)
+                    project:run(selection.value)
                 end)
                 return true
             end

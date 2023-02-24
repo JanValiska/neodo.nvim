@@ -1,18 +1,20 @@
 local M = {}
 local config_file_name = 'config.lua'
 local neodo_folder = '.neodo'
-local dp = vim.fn.stdpath("data")
+local dp = vim.fn.stdpath('data')
 local base_data_path = dp .. '/neodo'
-local fs = require 'neodo.file'
-local settings = require 'neodo.settings'
+local fs = require('neodo.file')
+local settings = require('neodo.settings')
 
-function M.project_hash(project_path) return vim.fn.sha256(project_path) end
+function M.project_hash(project_path)
+    return vim.fn.sha256(project_path.filename)
+end
 
 local function make_percent_path(path)
     if string.sub(path, 1, 1) == fs.separator then
         path = path:sub(2)
     end
-    local p = path:gsub(fs.separator, "-")
+    local p = path:gsub(fs.separator, '-')
     return p
 end
 
@@ -66,7 +68,7 @@ local function create_config_file(data_path, callback)
     local config_file = fs.join_path(data_path, config_file_name)
     write_template(config_file, template, function(err)
         if err then
-            print("Cannot create config file: " .. config_file)
+            print('Cannot create config file: ' .. config_file)
             callback(nil, nil)
         else
             callback(config_file, data_path)

@@ -1,11 +1,10 @@
 local M = {}
 
-local projects = require('neodo.projects')
 local notify = require('neodo.notify')
 
-function M.pick_command()
+function M.pick_command(projects)
     local project = projects[vim.b.neodo_project_hash]
-    local results = project.get_commands_keys_names()
+    local results = project:get_commands_keys_names()
 
     local function show_nice_name(item)
         return item.name
@@ -19,7 +18,7 @@ function M.pick_command()
                 if selection == nil then
                     return
                 end
-                project.run(selection.key)
+                project:run(selection.key)
             end
         )
     else

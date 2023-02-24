@@ -1,26 +1,27 @@
 local fs = require('neodo.file')
 local notify = require('neodo.notify')
+local Path = require('plenary.path')
 
-local base_api_dir = fs.join_path('.cmake', 'api', 'v1')
-local base_query_dir = fs.join_path(base_api_dir, 'query')
-local base_reply_dir = fs.join_path(base_api_dir, 'reply')
+local base_api_dir = Path:new('.cmake', 'api', 'v1')
+local base_query_dir = Path:new(base_api_dir, 'query')
+local base_reply_dir = Path:new(base_api_dir, 'reply')
 local base_codemodel_file = 'codemodel-v2'
 
 local CodeModel = {}
 
 function CodeModel:write_query()
-    if not fs.dir_exists(self.query_dir) then
-        fs.create_directories(self.query_dir)
+    if not self.query_dir:is_dir() then
+        self.query_dir:mkdir({ parents = true })
     end
-    local codemodel_file = fs.join_path(self.query_dir, base_codemodel_file)
-    if not fs.file_exists(codemodel_file) then
-        fs.touch(codemodel_file)
+    local codemodel_file = Path:new(self.query_dir, base_codemodel_file)
+    if not codemodel_file:exists() then
+        codemodel_file:touch()
     end
 end
 
 function CodeModel:load_model_file(path, callback)
-    local full_path = fs.join_path(self.reply_dir, path)
-    fs.read(full_path, 438, function(err, data)
+    local full_path = Path:new(self.reply_dir, path)
+    fs.read(full_path:absolute(), 438, function(err, data)
         if err then
             notify.error('Cannot read code model file: ' .. path)
             return
@@ -32,7 +33,7 @@ function CodeModel:load_model_file(path, callback)
 end
 
 local function find_index_file(reply_dir)
-    local items = fs.dirlist(reply_dir)
+    local items = fs.dirlist(reply_dir.filename)
     local pattern = '^index%-.*%.json$'
     for _, item in ipairs(items) do
         if string.match(item, pattern) then
@@ -48,7 +49,7 @@ function CodeModel:parse_target_model(model)
     end
     local paths = {}
     for _, a in ipairs(model.artifacts) do
-        table.insert(paths, a.path)
+        table.insert(paths, Path:new(self.build_dir, a.path))
     end
     self.targets[model.name] = { name = model.name, type = model.type, paths = paths }
 end
@@ -65,7 +66,7 @@ function CodeModel:read_reply(callback)
                         self:load_model_file(target.jsonFile, function(target_model)
                             self:parse_target_model(target_model)
                             refs = refs - 1
-                            if refs == 0 and type(callback) == "function" then
+                            if refs == 0 and type(callback) == 'function' then
                                 callback(true)
                             end
                         end)
@@ -86,9 +87,9 @@ end
 
 function CodeModel:new(build_dir)
     local o = {
-        build_dir = build_dir,
-        query_dir = fs.join_path(build_dir, base_query_dir),
-        reply_dir = fs.join_path(build_dir, base_reply_dir),
+        build_dir = Path:new(build_dir),
+        query_dir = Path:new(build_dir, base_query_dir),
+        reply_dir = Path:new(build_dir, base_reply_dir),
         targets = {},
     }
     setmetatable(o, self)

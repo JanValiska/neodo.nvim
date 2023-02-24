@@ -7,6 +7,7 @@ local config = require('neodo.project_type.cmake.config')
 local functions = require('neodo.project_type.cmake.functions')
 local notify = require('neodo.notify')
 local Profile = require('neodo.project_type.cmake.profile')
+local Path = require('plenary.path')
 
 local function select_build_configuration(cmake_project, callback)
     if type(callback) ~= 'function' then
@@ -48,12 +49,12 @@ local function save_and_reconfigure(ctx, profile)
     config.save(ctx.project, ctx.project_type, function()
         if ctx.project_type.has_conan then
             if profile:has_conan_profile() then
-                ctx.project.run('cmake.conan_install')
+                ctx.project:run('cmake.conan_install')
             else
-                ctx.project.run('cmake.select_conan_profile')
+                ctx.project:run('cmake.select_conan_profile')
             end
         elseif ctx.project_type.autoconfigure == true then
-            ctx.project.run('cmake.configure')
+            ctx.project:run('cmake.configure')
         end
     end)
 end
@@ -98,11 +99,11 @@ function M.create_profile(ctx)
                                     )
                                 then
                                     notify.warning('Profile with same build directory already exists. Try new one.')
-                                    ask_build_directory(confirmed_directory)
+                                    ask_build_directory(Path:new(confirmed_directory))
                                     return
                                 end
 
-                                local profile = Profile:new(cmake_project)
+                                local profile = Profile:new(ctx.project, cmake_project)
                                 profile:load_default(
                                     confirmed_name,
                                     confirmed_directory,
@@ -116,10 +117,10 @@ function M.create_profile(ctx)
                                 save_and_reconfigure(ctx, profile)
                             end)
                         end
-                        local suggested_build_directory = 'build-'
-                            .. build_type
-                            .. '-'
-                            .. string.gsub(build_configuration_key, '%s+', '-')
+                        local suggested_build_directory = Path:new(
+                            ctx.project:get_path(),
+                            'build-' .. build_type .. '-' .. string.gsub(build_configuration_key, '%s+', '-')
+                        ):absolute()
                         ask_build_directory(suggested_build_directory)
                     end)
                 end
@@ -288,22 +289,31 @@ function M.build_selected_target_enabled(ctx)
     return profile:has_selected_target()
 end
 
-function M.run_selected_target(ctx)
-    local cmake_project = ctx.project_type
-    local profile = functions.get_selected_profile(cmake_project)
-    if not profile then
-        return
-    end
-    return fs.join_path(profile:get_build_dir(), profile:get_selected_target().paths[1])
-end
+function M.run_selected_target(inopts)
+    local opts = inopts or {}
 
-function M.run_selected_target_enabled(ctx)
-    local cmake_project = ctx.project_type
-    local profile = functions.get_selected_profile(cmake_project)
-    if not profile then
-        return false
+    local function get_profile(ctx)
+        return functions.get_selected_profile(ctx.project_type)
     end
-    return profile:has_selected_target() and profile:get_selected_target().type == 'EXECUTABLE'
+
+    opts.enabled = opts.enabled
+        or function(ctx)
+            local profile = get_profile(ctx)
+            return profile and profile:has_selected_target() and profile:get_selected_target().type == 'EXECUTABLE'
+        end
+
+    opts.cmd = opts.cmd
+        or function(ctx)
+            local profile = get_profile(ctx)
+            return profile and profile:has_selected_target() and profile:get_selected_target().paths[1].filename or nil
+        end
+
+    opts.cwd = opts.cwd
+        or function(ctx)
+            local profile = get_profile(ctx)
+            return profile and profile:get_selected_target_cwd() or nil
+        end
+    return opts
 end
 
 function M.select_conan_profile(ctx)
@@ -317,9 +327,9 @@ function M.select_conan_profile(ctx)
         config.save(ctx.project, cmake_project)
 
         if cmake_project.conan_auto_install == true then
-            ctx.project.run('cmake.conan_install')
+            ctx.project:run('cmake.conan_install')
         elseif cmake_project.autoconfigure == true then
-            ctx.project.run('cmake.configure')
+            ctx.project:run('cmake.configure')
         end
     end)
 end
@@ -345,7 +355,7 @@ end
 function M.conan_install_on_success(ctx)
     local cmake_project = ctx.project_type
     if cmake_project.autoconfigure == true then
-        ctx.project.run('cmake.configure')
+        ctx.project:run('cmake.configure')
     end
 end
 

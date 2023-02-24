@@ -18,7 +18,7 @@ M.register = function()
                 end
                 ctx.project_type.has_conan = fs.file_exists('conanfile.txt')
 
-                if not ctx.project.config_file() then
+                if not ctx.project:get_config_file() then
                     ctx.project.create_config_file(function(result)
                         if result then
                             load_config()
@@ -85,11 +85,9 @@ M.register = function()
                 enabled = commands.build_selected_target_enabled,
                 errorformat = compilers.get_errorformat('gcc'),
             },
-            run_selected_target = {
+            run_selected_target = commands.run_selected_target({
                 name = 'Run selected target',
-                cmd = commands.run_selected_target,
-                enabled = commands.run_selected_target_enabled,
-            },
+            }),
             conan_install = {
                 name = 'Install conan packages',
                 cmd = commands.conan_install,

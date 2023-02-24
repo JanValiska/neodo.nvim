@@ -1,6 +1,5 @@
 local M = {}
 
-local projects = require('neodo.projects')
 local NuiTree = require('nui.tree')
 local NuiPopup = require('nui.popup')
 local NuiLine = require('nui.line')
@@ -9,7 +8,7 @@ local function make_popup()
     return NuiPopup({
         position = '50%',
         size = {
-            width = 80,
+            width = 120,
             height = 40,
         },
         enter = true,
@@ -39,26 +38,23 @@ local function make_popup()
     })
 end
 
-M.show = function()
+M.show = function(projects)
     local function get_project(project)
         local ptNodes = {}
-        local project_types = project.project_types()
+        local project_types = project:get_project_types()
         if vim.tbl_count(project_types) ~= 0 then
             for _, t in pairs(project_types) do
                 if type(t.get_info_node) == 'function' then
                     table.insert(
                         ptNodes,
-                        NuiTree.Node(
-                            { text = t.name },
-                            t.get_info_node({ project = project, project_type = t })
-                        )
+                        NuiTree.Node({ text = t.name }, t.get_info_node({ project = project, project_type = t }))
                     )
                 else
                     table.insert(ptNodes, NuiTree.Node({ text = t.name }))
                 end
             end
         end
-        return NuiTree.Node({ text = project.path() }, ptNodes)
+        return NuiTree.Node({ text = project:get_path() }, ptNodes)
     end
 
     local function get_project_list()
