@@ -162,4 +162,14 @@ function M.tbl_deep_extend(behavior, ...)
     return tbl_extend(behavior, true, ...)
 end
 
+function M.tbl_append(to, from)
+    if type(from) ~= 'table' or not vim.tbl_islist(from) then
+        return to
+    end
+    for _, v in ipairs(from) do
+        table.insert(to, v)
+    end
+    return to
+end
+
 return M

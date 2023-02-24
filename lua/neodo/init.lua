@@ -43,7 +43,7 @@ local function reload_project(project)
         local p = load_project(path, project_type_keys)
         for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
             local hash = utils.get_buf_variable(bufnr, 'neodo_project_hash')
-            if hash == p:hash() then
+            if hash == p:get_hash() then
                 p:call_buffer_on_attach(bufnr)
             end
         end

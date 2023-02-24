@@ -10,7 +10,7 @@ local function merge_custom_config(config, custom_config)
     if custom_config == nil then
         return config
     end
-    return vim.tbl_deep_extend('force', config, custom_config)
+    return utils.tbl_deep_extend('force', config, custom_config)
 end
 
 local function strip_user_project_settings(user_settings)

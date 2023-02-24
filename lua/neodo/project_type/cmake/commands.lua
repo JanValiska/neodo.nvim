@@ -117,10 +117,12 @@ function M.create_profile(ctx)
                                 save_and_reconfigure(ctx, profile)
                             end)
                         end
-                        local suggested_build_directory = Path:new(
-                            ctx.project:get_path(),
-                            'build-' .. build_type .. '-' .. string.gsub(build_configuration_key, '%s+', '-')
-                        ):absolute()
+                        local suggested_build_directory = Path
+                            :new(
+                                ctx.project:get_path(),
+                                'build-' .. build_type .. '-' .. string.gsub(build_configuration_key, '%s+', '-')
+                            )
+                            :absolute()
                         ask_build_directory(suggested_build_directory)
                     end)
                 end
@@ -345,11 +347,11 @@ function M.conan_install(ctx)
     if not profile then
         return
     end
-    local conan_profile = ''
+    local cmd = { 'conan', 'install' }
     if profile:has_conan_profile() then
-        conan_profile = '--profile ' .. profile:get_conan_profile()
+        cmd = utils.tbl_append(cmd, { '--profile', profile:get_conan_profile() })
     end
-    return 'conan install ' .. conan_profile .. ' -if ' .. profile:get_build_dir() .. ' .'
+    return utils.tbl_append(cmd, { '-if', profile:get_build_dir(), '.' })
 end
 
 function M.conan_install_on_success(ctx)
@@ -369,7 +371,7 @@ function M.show_cache_variables(ctx)
     if not profile then
         return
     end
-    return 'cmake -B ' .. profile:get_build_dir() .. ' -L'
+    return { 'cmake', '-B', profile:get_build_dir(), '-L' }
 end
 
 function M.show_cache_variables_enabled(ctx)

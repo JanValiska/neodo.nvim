@@ -122,9 +122,6 @@ local function start_function_command(command, project, project_type)
 end
 
 local function get_cmd_string(command, project, project_type)
-    if command.cmd == nil then
-        return nil
-    end
     if type(command.cmd) == 'function' then
         local ctx = { params = nil, project = project, project_type = project_type }
         if command.params and type(command.params) == 'function' then
@@ -133,7 +130,7 @@ local function get_cmd_string(command, project, project_type)
             ctx.params = command.params
         end
         return command.cmd(ctx)
-    elseif type(command.cmd) == 'string' then
+    elseif type(command.cmd) == 'string' or (type(command.cmd) == 'table' and vim.tbl_islist(command.cmd)) then
         return command.cmd
     end
     return nil
@@ -146,10 +143,10 @@ local function start_cmd(command, project, project_type)
         return false
     end
 
-    local cwd = type(command.cwd) == 'function'
-            and command.cwd({ project = project, project_type = project_type })
-        or command.cwd
+    local cwd = (type(command.cwd) == 'function' and command.cwd({ project = project, project_type = project_type }))
+        or (type(command.cwd) == 'string' and command.cwd)
         or project:get_path()
+
     local opts = {
         cwd = cwd,
         on_stderr = on_event,
@@ -197,7 +194,7 @@ local function start_cmd(command, project, project_type)
     command_contexts[uuid_generator()] = command_context
 
     if should_notify(command) then
-        notify.info("Starting", command.name)
+        notify.info('Starting', command.name)
     end
 end
 

@@ -1,4 +1,5 @@
 local uuid = require('neodo.uuid')
+local utils = require('neodo.utils')
 local CodeModel = require('neodo.project_type.cmake.code_model')
 local Path = require('plenary.path')
 
@@ -16,10 +17,14 @@ local function create_code_model(self)
 end
 
 local function get_build_args(props)
-    if not props.build_configuration or not props.build_configuration.build_args then
-        return ''
+    if
+        not props.build_configuration
+        or not props.build_configuration.build_args
+        or not vim.tbl_islist(props.build_configuration.build_args)
+    then
+        return {}
     end
-    return ' -- ' .. props.build_configuration.build_args
+    return utils.tbl_append({ '--' }, props.build_configuration.build_args)
 end
 
 local function to_absolute(p)
@@ -29,7 +34,7 @@ end
 function Profile:new(project, cmake_project)
     local properties = {
         name = nil,
-        default_cmake_options = '-DCMAKE_EXPORT_COMPILE_COMMANDS=1',
+        default_cmake_options = { '-DCMAKE_EXPORT_COMPILE_COMMANDS=1' },
         project = project,
         cmake_project = cmake_project,
         configured = false,
@@ -68,7 +73,6 @@ end
 function Profile:save_to_table()
     return {
         key = self.key,
-        cmake_options = self.cmake_options,
         build_type = self.build_type,
         build_configuration_key = self.build_configuration_key,
         build_directory = self:get_build_dir(),
@@ -137,19 +141,27 @@ function Profile:get_selected_target_cwd()
 end
 
 function Profile:get_configure_command()
-    local args = self.default_cmake_options .. ' -DCMAKE_BUILD_TYPE=' .. self.build_type
-    if self.build_configuration and self.build_configuration.cmake_options then
-        args = args .. ' ' .. self.build_configuration.cmake_options
+    local cmd = { 'cmake', '-B', self:get_build_dir() }
+    cmd = utils.tbl_append(cmd, self.default_cmake_options)
+    cmd = utils.tbl_append(cmd, { ' -DCMAKE_BUILD_TYPE=' .. self.build_type })
+
+    local opts = self.build_configuration and self.build_configuration.cmake_options
+    if opts then
+        if type(opts) == 'table' then
+            cmd = utils.tbl_append(cmd, opts)
+        elseif type(opts) == 'string' then
+            table.insert(cmd, opts)
+        end
     end
-    return 'cmake -B ' .. self:get_build_dir() .. ' ' .. args
+    return cmd
 end
 
 function Profile:get_build_all_command()
-    return 'cmake --build ' .. self:get_build_dir() .. get_build_args(self)
+    return utils.tbl_append({ 'cmake', '--build', self:get_build_dir() }, get_build_args(self))
 end
 
 function Profile:get_clean_command()
-    return 'cmake --build ' .. self:get_build_dir() .. ' --target clean'
+    return { 'cmake', '--build', self:get_build_dir(), '--target', 'clean' }
 end
 
 function Profile:get_targets()
@@ -186,7 +198,10 @@ function Profile:get_build_selected_target_command()
     if not self.selected_target then
         return nil
     end
-    return 'cmake --build ' .. self:get_build_dir() .. ' --target ' .. self.selected_target .. get_build_args(self)
+    return utils.tbl_append(
+        { 'cmake', '--build', self:get_build_dir(), '--target', self.selected_target },
+        get_build_args(self)
+    )
 end
 
 function Profile:set_conan_profile(profile)
@@ -208,6 +223,7 @@ end
 
 function Profile:get_info_node()
     local NuiTree = require('nui.tree')
+    local Node = NuiTree.Node
     local function get_targets_info()
         local targets = self:get_targets()
         if not targets or vim.tbl_count(targets) == 0 then
@@ -220,13 +236,45 @@ function Profile:get_info_node()
         end
         return NuiTree.Node({ text = 'Targets:' }, targetNodes)
     end
+    local function get_build_configuration_info()
+        local bc = self.build_configuration
+        local bc_name = ((bc and bc.name) or 'MISSING')
+        local bc_nodes = {}
+
+        if
+            type(bc.cmake_options) == 'table'
+            and vim.tbl_islist(bc.cmake_options)
+            and vim.tbl_count(bc.cmake_options) ~= 0
+        then
+            local opts_nodes = {}
+            for _, opt in ipairs(bc.cmake_options) do
+                table.insert(opts_nodes, Node({ text = opt }))
+            end
+            table.insert(bc_nodes, Node({ text = 'CMake options:' }, opts_nodes))
+        end
+
+        if type(bc.build_args) == 'table' and vim.tbl_islist(bc.build_args) and vim.tbl_count(bc.build_args) ~= 0 then
+            local opts_nodes = {}
+            for _, opt in ipairs(bc.build_args) do
+                table.insert(opts_nodes, Node({ text = opt }))
+            end
+            table.insert(bc_nodes, Node({ text = 'Build args:' }, opts_nodes))
+        end
+
+        if bc.conan_profile then
+            table.insert(bc_nodes, Node({ text = 'Conan profile: ' .. bc.conan_profile }))
+        end
+
+        if vim.tbl_count(bc_nodes) ~= 0 then
+            return Node({ text = 'Build configuration: ' .. bc_name }, bc_nodes)
+        else
+            return Node({ text = 'Build configuration: ' .. bc_name })
+        end
+    end
     return {
         NuiTree.Node({ text = 'UUID: ' .. self.key }),
         NuiTree.Node({ text = 'Build directory: ' .. self:get_build_dir() }),
-        NuiTree.Node({
-            text = 'Build configuration: '
-                .. ((self.build_configuration and self.build_configuration.name) or 'MISSING'),
-        }),
+        get_build_configuration_info(),
         NuiTree.Node({ text = 'Build type: ' .. self.build_type }),
         NuiTree.Node({
             text = 'Configured: ' .. (self:is_configured() and 'Yes' or 'No'),

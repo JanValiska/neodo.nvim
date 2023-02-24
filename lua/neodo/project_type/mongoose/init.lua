@@ -7,10 +7,11 @@ local notify = require('neodo.notify')
 
 function M.build_cmd(ctx)
     local params = ctx.params
-    local cmd = { 'mos build' }
+    local cmd = { 'mos', 'build' }
 
     if not params then
-        return { type = 'error', text = 'Params not found' }
+        notify.error('Params not found', 'Mongoose OS')
+        return nil
     end
 
     -- Check platform param
@@ -18,22 +19,22 @@ function M.build_cmd(ctx)
         notify.error("Parameter '--platform' missing", 'Mongoose OS')
         return nil
     else
-        table.insert(cmd, '--platform ' .. params.platform)
+        cmd = utils.tbl_append(cmd, { '--platform', params.platform })
     end
 
     if params.local_build then
-        table.insert(cmd, '--local')
+        cmd = utils.tbl_append(cmd, { '--local' })
     end
 
     if params.verbose then
-        table.insert(cmd, '--verbose')
+        cmd = utils.tbl_append(cmd, { '--verbose' })
     end
 
     if params.port then
         table.insert(cmd, '--port ' .. params.port)
+        cmd = utils.tbl_append(cmd, { '--port', params.port })
     end
-
-    return utils.tbl_join(cmd, ' ')
+    return cmd
 end
 
 M.build_params = { platform = 'esp32', local_build = true, verbose = false }
@@ -42,28 +43,29 @@ M.build_errorformat = compilers.get_errorformat('gcc')
 
 function M.flash_cmd(ctx)
     local params = ctx.params
-    local cmd = { 'mos flash' }
+    local cmd = { 'mos', 'flash' }
 
     if params ~= nil then
         if params.port then
-            table.insert(cmd, '--port ' .. params.port)
+            cmd = utils.tbl_append(cmd, { '--port', params.port })
         end
     end
 
-    return utils.tbl_join(cmd, ' ')
+    return cmd
 end
 
 function M.console_cmd(ctx)
     local params = ctx.params
-    local cmd = { 'mos console' }
+    local cmd = { 'mos', 'console' }
 
     if params ~= nil then
         if params.port then
             table.insert(cmd, '--port ' .. params.port)
+            cmd = utils.tbl_append(cmd, { '--port', params.port })
         end
     end
 
-    return utils.tbl_join(cmd, ' ')
+    return cmd
 end
 
 M.register = function()

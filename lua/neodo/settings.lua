@@ -13,7 +13,7 @@ local M = {
                 require('neodo').info()
             end,
         },
-    },
+    }
 }
 
 return M
