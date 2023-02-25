@@ -194,6 +194,10 @@ function Profile:has_selected_target()
     return self.selected_target ~= nil
 end
 
+function Profile:get_debugging_adapter()
+    return self.build_configuration and self.build_configuration.debugging_adapter or nil
+end
+
 function Profile:get_build_selected_target_command()
     if not self.selected_target then
         return nil

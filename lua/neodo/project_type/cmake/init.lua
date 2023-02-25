@@ -88,6 +88,9 @@ M.register = function()
             run_selected_target = commands.run_selected_target({
                 name = 'Run selected target',
             }),
+            debug_selected_target = commands.debug_selected_target({
+                name = 'Debug selected target',
+            }),
             conan_install = {
                 name = 'Install conan packages',
                 cmd = commands.conan_install,

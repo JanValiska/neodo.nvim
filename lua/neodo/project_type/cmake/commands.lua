@@ -318,6 +318,61 @@ function M.run_selected_target(inopts)
     return opts
 end
 
+function M.debug_selected_target(inopts)
+    local opts = inopts or {}
+
+    local function get_profile(ctx)
+        return functions.get_selected_profile(ctx.project_type)
+    end
+
+    opts.enabled = opts.enabled
+        or function(ctx)
+            local profile = get_profile(ctx)
+            return profile
+                and profile:has_selected_target()
+                and profile:get_selected_target().type == 'EXECUTABLE'
+                and profile:get_selected_target().paths[1]:exists()
+                and profile:get_debugging_adapter()
+        end
+
+    opts.fn = opts.dn
+        or function(ctx)
+            local profile = get_profile(ctx)
+            if not profile then
+                return
+            end
+
+            local cwd = profile and profile:get_selected_target_cwd() or nil
+            if not cwd then
+                return
+            end
+            local executable = profile
+                    and profile:has_selected_target()
+                    and profile:get_selected_target().paths[1].filename
+                or nil
+            if not executable then
+                return
+            end
+
+            local adapter = profile:get_debugging_adapter()
+            if not adapter then
+                return
+            end
+
+            local dap = require('dap')
+            local configuration = {
+                args = {},
+                cwd = cwd,
+                program = executable,
+                request = 'launch',
+                stopOnEntry = false,
+                type = adapter,
+            }
+            dap.run(configuration)
+        end
+    return opts
+end
+
 function M.select_conan_profile(ctx)
     local cmake_project = ctx.project_type
     picker.pick('Select conan profile: ', utils.get_output('conan profile list'), function(conan_profile)
