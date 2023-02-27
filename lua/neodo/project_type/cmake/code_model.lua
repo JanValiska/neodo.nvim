@@ -82,7 +82,7 @@ function CodeModel:read_reply(callback)
 end
 
 function CodeModel:get_targets()
-    return self.targets
+    return self.targets or {}
 end
 
 function CodeModel:new(build_dir)
