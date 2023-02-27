@@ -1,19 +1,23 @@
+local cmds = require('neodo.project_type.cmake.commands')
 local M = {}
 
-function M.statusline(project_type)
-    local statusline = "CMake ❯ "
-    if project_type.config.selected_profile then
-        statusline = statusline .. project_type.config.selected_profile
-        local profile = project_type.config.profiles[project_type.config.selected_profile]
-        if not profile.configured then
-            statusline = statusline .. " ❯ unconfigured"
-        else
-            if project_type.config.selected_target then
-                statusline = statusline .. " ❯ " .. project_type.config.selected_target
+function M.statusline(ctx)
+    local statusline = ''
+    local profile = cmds.get_selected_profile(ctx)
+    if profile then
+        statusline = statusline .. " " .. profile:get_name()
+        if profile:is_configured() then
+            statusline = statusline .. '  '
+            if profile:has_selected_target() then
+                statusline = statusline .. profile:get_selected_target().name
+            else
+                statusline = statusline .. 'no target'
             end
+        else
+            statusline = statusline .. '   unconfigured'
         end
     else
-        statusline = statusline .. "no profile"
+        statusline = statusline .. '  no profile'
     end
     return statusline
 end
