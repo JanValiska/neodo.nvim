@@ -3,7 +3,7 @@ local M = {}
 local notify = require('neodo.notify')
 local config = require('neodo.project_type.cmake.config')
 local commands = require('neodo.project_type.cmake.commands')
-local fs = require('neodo.file')
+local Path = require('plenary.path')
 
 M.register = function()
     local settings = require('neodo.settings')
@@ -13,7 +13,7 @@ M.register = function()
         on_attach = {
             function(ctx)
                 local function load_config() config.load(ctx.project, ctx.project_type) end
-                ctx.project_type.has_conan = fs.file_exists('conanfile.txt')
+                ctx.project_type.has_conan = Path:new(ctx.project:get_path(), 'conanfile.txt'):exists()
 
                 if not ctx.project:get_config_file() then
                     ctx.project.create_config_file(function(result)

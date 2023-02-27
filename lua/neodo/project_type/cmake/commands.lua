@@ -1,7 +1,6 @@
 local M = {}
 
 local utils = require('neodo.utils')
-local fs = require('neodo.file')
 local picker = require('neodo.picker')
 local compilers = require('neodo.compilers')
 local config = require('neodo.project_type.cmake.config')
@@ -245,7 +244,7 @@ function M.delete_profile(opts)
                 confirm(function(really_delete)
                     if really_delete then
                         confirm(function(keep_build_dir)
-                            if not keep_build_dir then fs.delete(profile:get_build_dir()) end
+                            if not keep_build_dir then Path:new(profile:get_build_dir()):rmdir() end
                             cmake_project.config.profiles[profile_key] = nil
                             if profile_key == cmake_project.config.selected_profile then
                                 cmake_project.config.selected_profile = nil
@@ -630,7 +629,7 @@ function M.change_build_directory(opts)
 
                         confirm(function(keep_old_build_directory)
                             if not keep_old_build_directory then
-                                fs.delete(profile:get_build_dir())
+                                Path:new(profile:get_build_dir()):rmdir()
                             end
                             profile:set_build_dir(new_build_directory)
                             notify.info(
