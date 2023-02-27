@@ -377,6 +377,7 @@ function M.run_selected_target(opts)
     opts = opts or {}
 
     opts.name = opts.name or 'Run selected target'
+    opts.keep_terminal_open = opts.keep_terminal_open or true
 
     opts.enabled = opts.enabled
         or function(ctx)
