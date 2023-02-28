@@ -53,6 +53,17 @@ function M.close_win(winnr)
     end
 end
 
+function M.set_buf_variable(buf, var_name, value)
+    local s, v = pcall(function()
+        return vim.api.nvim_buf_set_var(buf, var_name, value)
+    end)
+    if s then
+        return v
+    else
+        return nil
+    end
+end
+
 function M.get_buf_variable(buf, var_name)
     local s, v = pcall(function()
         return vim.api.nvim_buf_get_var(buf, var_name)

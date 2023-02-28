@@ -12,8 +12,27 @@ local utils = require('neodo.utils')
 local projects = require('neodo.projects')
 local Project = require('neodo.project')
 
+local Path = require('plenary.path')
+
+local function log(...)
+    if global_settings.debug then print(...) end
+end
+
+local function set_project_hash(hash, bufnr)
+    bufnr = bufnr or vim.api.nvim_win_get_buf(0)
+    log('Setting hash', hash, 'for buffer', bufnr)
+    return utils.set_buf_variable(bufnr, 'neodo_project_hash', hash)
+end
+
+local function get_project_hash(bufnr)
+    bufnr = bufnr or vim.api.nvim_win_get_buf(0)
+    log('Getting hash of', bufnr)
+    return utils.get_buf_variable(bufnr, 'neodo_project_hash')
+end
+
 local function change_root(dir)
     if global_settings.change_root then
+        log('Changing root to:', dir)
         vim.api.nvim_set_current_dir(dir)
         if global_settings.change_root_notify then notify.info(dir, 'Working directory changed') end
     end
@@ -38,7 +57,7 @@ local function reload_project(project)
     vim.schedule(function()
         local p = load_project(path, project_type_keys)
         for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-            local hash = utils.get_buf_variable(bufnr, 'neodo_project_hash')
+            local hash = get_project_hash(bufnr)
             if hash == p:get_hash() then p:call_buffer_on_attach(bufnr) end
         end
     end)
@@ -52,6 +71,7 @@ end
 
 -- called when project root is detected
 local function on_project_folder_and_types_detected(project_folder_and_types, bufnr)
+    log('Root detected:', vim.inspect(project_folder_and_types), 'for bufnr', bufnr)
     local path = project_folder_and_types.path
     local project_types_keys = project_folder_and_types.project_types_keys
 
@@ -63,7 +83,7 @@ local function on_project_folder_and_types_detected(project_folder_and_types, bu
     local hash = configuration.project_hash(path)
 
     -- mark current buffer that it belongs to project
-    vim.b.neodo_project_hash = hash
+    set_project_hash(hash, bufnr)
 
     -- return already loaded project
     local project = projects[hash]
@@ -73,35 +93,36 @@ local function on_project_folder_and_types_detected(project_folder_and_types, bu
     project:call_buffer_on_attach(bufnr)
 end
 
-local function already_loaded() return vim.b.neodo_project_hash ~= nil end
-
 function M.config_file_written()
     local config = vim.fn.expand(vim.fn.expand('%:p'))
     config_changed(config)
 end
 
-local function find_project()
-    local basepath = vim.fn.expand('%:p:h')
+local function find_project(bufnr)
+    local s, basepath = pcall(function() return Path:new(vim.api.nvim_buf_get_name(bufnr)) end)
+    if not s then return end
 
     if basepath == nil then return end
 
-    -- replace double // separators
-    basepath = basepath:gsub('//', '/')
-
     -- if current buffer belongs to already loaded project then just attach buffer
-    local bufnr = vim.api.nvim_get_current_buf()
+    log('Finding', basepath.filename, 'in already loaded projects')
     for hash, project in pairs(projects) do
-        if string.find(basepath, project:get_path()) then
+        log('Looking if basepath', basepath.filename, 'is in', project:get_path())
+        local start, stop = string.find(basepath.filename, project:get_path(), 1, true)
+        log('Find results:', vim.inspect(start), vim.inspect(stop))
+        if start and stop and start == 1 then
+            log('Basepath', basepath.filename, 'is in', project:get_path())
             change_root(project:get_path())
-            vim.b.neodo_project_hash = hash
+            set_project_hash(hash, bufnr)
             project:call_buffer_on_attach(bufnr)
             return
         end
     end
 
+    log('Finding root')
     -- try to find project root and project types
     root.find_project(
-        basepath,
+        basepath:parent().filename,
         function(project_folder_and_types)
             on_project_folder_and_types_detected(project_folder_and_types, bufnr)
         end
@@ -124,30 +145,40 @@ local function is_buffer_valid()
 end
 
 -- called when the buffer is read first time or using :e
-function M.buffer_read()
-    if not is_buffer_valid() then return end
+function M.handle_buffer(bufnr)
+    log('Handling buffer:', bufnr)
+    if not is_buffer_valid() then
+        log('Buffer', bufnr, 'not valid')
+        return
+    end
 
-    if already_loaded() then
-        change_root(projects[vim.b.neodo_project_hash]:get_path())
+    local hash = get_project_hash(bufnr)
+    log('Buffer hash is', hash)
+    if hash ~= nil then
+        log('Buffer', bufnr, 'already loaded')
+        change_root(projects[hash]:get_path())
     else
-        find_project()
+        log('Buffer', bufnr, 'NOT loaded')
+        find_project(bufnr)
     end
 end
 
--- called when the buffer is entered(on buffer switch, etc)
-function M.buffer_enter()
-    if not is_buffer_valid() then return end
+local startup_done = false
 
-    if already_loaded() then change_root(projects[vim.b.neodo_project_hash]:get_path()) end
+function M.handle_startup()
+    if startup_done then return end
+    log('Handling startup')
+
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        M.handle_buffer(tonumber(bufnr))
+    end
+
+    startup_done = true
 end
 
 function M.get_project()
-    local buf = vim.api.nvim_win_get_buf(0)
-    if vim.api.nvim_buf_is_loaded(buf) then
-        local hash = utils.get_buf_variable(buf, 'neodo_project_hash')
-        if hash ~= nil then return projects[hash] end
-    end
-    return nil
+    local hash = get_project_hash()
+    return hash and projects[hash] or nil
 end
 
 function M.has_config()
@@ -155,34 +186,27 @@ function M.has_config()
     return project and project:get_config_file()
 end
 
-M.has_project = function()
-    local buf = vim.api.nvim_win_get_buf(0)
-    if vim.api.nvim_buf_is_loaded(buf) then
-        local hash = utils.get_buf_variable(buf, 'neodo_project_hash')
-        if hash ~= nil then return true end
-    end
-    return false
-end
-
--- called by user code to execute command with given key for current buffer
 function M.run(command_key)
-    if vim.b.neodo_project_hash == nil then
+    local hash = get_project_hash()
+    if hash == nil then
         notify.warning('Buffer not attached to any project')
         return
     end
-    projects[vim.b.neodo_project_hash]:run(command_key)
+    projects[hash]:run(command_key)
 end
 
 function M.run_last()
-    if vim.b.neodo_project_hash == nil then
+    local hash = get_project_hash()
+    if hash == nil then
         notify.warning('Buffer not attached to any project')
         return
     end
-    projects[vim.b.neodo_project_hash]:run_last_command()
+    projects[hash]:run_last_command()
 end
 
 function M.neodo()
-    if vim.b.neodo_project_hash == nil then
+    local hash = get_project_hash()
+    if hash == nil then
         notify.warning('Buffer not attached to any project')
         return
     else
@@ -191,7 +215,7 @@ function M.neodo()
 end
 
 function M.edit_project_settings()
-    local project_hash = vim.b.neodo_project_hash
+    local project_hash = get_project_hash()
 
     if project_hash == nil then
         notify.warning('Cannot edit project settings. Current buffer is not part of project.')
@@ -224,7 +248,7 @@ local function handle_vim_command(command_key)
 end
 
 local function completions_helper(_, _)
-    local project_hash = vim.b.neodo_project_hash
+    local project_hash = get_project_hash()
     if project_hash ~= nil then return projects[project_hash]:get_commands_keys() end
     return {}
 end
@@ -244,24 +268,22 @@ local function register_telescope_extension()
 end
 
 function M.setup(config)
-    register_built_in_project_types()
-    register_telescope_extension()
-
-    if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
-
     local neodo_basic_autocommands_group =
         vim.api.nvim_create_augroup('NeodoBasicAutocommands', { clear = true })
 
-    vim.api.nvim_create_autocmd('BufRead', {
+    vim.api.nvim_create_autocmd({ 'BufEnter' }, {
         group = neodo_basic_autocommands_group,
         pattern = '*',
-        callback = function() M.buffer_read(vim.fn.expand('<abuf>')) end,
+        callback = function()
+            local bufnr = tonumber(vim.fn.expand('<abuf>')) or 0
+            vim.schedule(function() M.handle_buffer(bufnr) end)
+        end,
     })
 
-    vim.api.nvim_create_autocmd('BufEnter', {
+    vim.api.nvim_create_autocmd({ 'VimEnter' }, {
         group = neodo_basic_autocommands_group,
         pattern = '*',
-        callback = function() M.buffer_enter(vim.fn.expand('<abuf>')) end,
+        callback = function() M.handle_startup() end,
     })
 
     vim.api.nvim_create_autocmd('BufWrite', {
@@ -277,6 +299,12 @@ function M.setup(config)
     )
     vim.api.nvim_create_user_command('NeodoEditProjectSettings', M.edit_project_settings, {})
     vim.api.nvim_create_user_command('NeodoInfo', M.info, {})
+
+    register_built_in_project_types()
+    register_telescope_extension()
+
+    if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
+    M.handle_startup()
 end
 
 return M

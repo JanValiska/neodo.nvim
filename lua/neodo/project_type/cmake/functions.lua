@@ -11,10 +11,11 @@ end
 
 function M.switch_compile_commands(profile)
     if profile:is_configured() then
-        local src_compile_commands = Path:new(profile:get_source_dir(), 'compile_commands.json')
-        local build_compile_commands = Path:new(profile:get_build_dir(), 'compile_commands.json')
-        if src_compile_commands:exists() then src_compile_commands:rm() end
-        uv.fs_symlink(build_compile_commands, src_compile_commands)
+        local root = Path:new(profile:get_root_dir(), 'compile_commands.json')
+        local build = Path:new(profile:get_build_dir(), 'compile_commands.json')
+        local cwd = vim.loop.cwd()
+        if root:exists() then root:rm() end
+        uv.fs_symlink(build:make_relative(cwd), root:make_relative(cwd))
     end
 end
 

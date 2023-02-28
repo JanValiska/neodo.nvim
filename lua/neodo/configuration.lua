@@ -7,7 +7,7 @@ local fs = require('neodo.file')
 local settings = require('neodo.settings')
 
 function M.project_hash(project_path)
-    return vim.fn.sha256(project_path.filename)
+    return vim.fn.sha256(project_path)
 end
 
 local function make_percent_path(path)
@@ -92,7 +92,7 @@ function M.ensure_config_file_and_data_path(project, callback)
         f = create_in_the_source_config_file
     end
 
-    f(project.path(), function(config, data_path)
+    f(project:get_path(), function(config, data_path)
         callback(config, data_path)
     end)
 end

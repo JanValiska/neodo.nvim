@@ -16,6 +16,10 @@ function M.load(project, cmake_project)
 
     local config_file = Path:new(project:get_data_path(), cmake_config_file_name)
 
+    if not config_file:is_file() then
+        return
+    end
+
     local data = config_file:read()
     if not data then return end
 

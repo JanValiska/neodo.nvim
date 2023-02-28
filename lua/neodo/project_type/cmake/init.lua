@@ -16,7 +16,7 @@ M.register = function()
                 ctx.project_type.has_conan = Path:new(ctx.project:get_path(), 'conanfile.txt'):exists()
 
                 if not ctx.project:get_config_file() then
-                    ctx.project.create_config_file(function(result)
+                    ctx.project:create_config_file(function(result)
                         if result then
                             load_config()
                         else
