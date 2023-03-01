@@ -208,6 +208,10 @@ function Profile:has_conan_profile()
         or self.conan_profile ~= nil
 end
 
+function Profile:get_conan_remote()
+    return self.build_configuration and self.build_configuration.conan_remote
+end
+
 function Profile:conan_installed()
     local lockPath = Path.new(self.build_directory.filename, 'conan.lock')
     local hasNotConan = not self.project.has_conan

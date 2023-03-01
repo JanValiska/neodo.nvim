@@ -330,7 +330,7 @@ function M.build_all(opts)
             local profile = M.get_selected_profile(ctx)
             return profile and profile:get_build_all_command() or nil
         end
-    opts.errorformat = compilers.get_errorformat('gcc')
+    opts.errorformat = opts.errorformat or compilers.get_errorformat('gcc')
     return opts
 end
 
@@ -465,7 +465,11 @@ function M.conan_install(opts)
             if profile:has_conan_profile() then
                 cmd = utils.tbl_append(cmd, { '--profile', profile:get_conan_profile() })
             end
-            return utils.tbl_append(cmd, { '-if', profile:get_build_dir(), '.' })
+            local remote = profile:get_conan_remote()
+            if remote then
+                cmd = utils.tbl_append(cmd, { '-r', remote })
+            end
+            return utils.tbl_append(cmd, { '-u', '-if', profile:get_build_dir(), '.' })
         end
 
     opts.on_success = opts.on_success
