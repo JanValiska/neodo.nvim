@@ -70,7 +70,7 @@ local function table_copy(datatable)
     return new_datatable
 end
 
-function Project:new(global_settings, path, project_types_keys)
+function Project:new(global_settings, path, types)
     local function to_absolute(p)
         return Path:new(Path:new(p):absolute())
     end
@@ -92,8 +92,9 @@ function Project:new(global_settings, path, project_types_keys)
     props.commands = table_copy(global_settings.commands)
     props.on_attach = vim.list_extend(props.on_attach, global_settings.on_attach or {})
     props.buffer_on_attach = vim.list_extend(props.buffer_on_attach, global_settings.buffer_on_attach or {})
-    for _, project_type_key in ipairs(project_types_keys) do
-        props.project_types[project_type_key] = table_copy(global_settings.project_types[project_type_key])
+    for key, type_path in pairs(types) do
+        props.project_types[key] = table_copy(global_settings.project_types[key])
+        props.project_types[key].path = to_absolute(type_path)
     end
 
     -- apply project specific settings
@@ -268,6 +269,14 @@ end
 
 function Project:get_project_types_keys()
     return vim.tbl_keys(self.project_types)
+end
+
+function Project:get_project_types_paths()
+    local types = {}
+    for key,t in pairs(self.project_types) do
+        types[key] = t.path
+    end
+    return types
 end
 
 return Project

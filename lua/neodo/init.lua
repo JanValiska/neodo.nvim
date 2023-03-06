@@ -7,16 +7,13 @@ local notify = require('neodo.notify')
 
 local picker = require('neodo.picker')
 local utils = require('neodo.utils')
+local log = require('neodo.log')
 
 -- per project configurations
 local projects = require('neodo.projects')
 local Project = require('neodo.project')
 
 local Path = require('plenary.path')
-
-local function log(...)
-    if global_settings.debug then print(...) end
-end
 
 local function set_project_hash(hash, bufnr)
     bufnr = bufnr or vim.api.nvim_win_get_buf(0)
@@ -38,24 +35,24 @@ local function change_root(dir)
     end
 end
 
-local function load_project(path, project_types_keys)
-    if global_settings.load_project_notify then notify.info(path, 'Loading project') end
-    local project = Project:new(global_settings, path, project_types_keys)
+local function load_project(project_root, project_types)
+    if global_settings.load_project_notify then notify.info(project_root, 'Loading project') end
+    local project = Project:new(global_settings, project_root, project_types)
     project:call_on_attach()
     projects[project:get_hash()] = project
     return project
 end
 
 local function reload_project(project)
-    local path = project:get_path()
-    local project_type_keys = project:get_project_types_keys()
+    local project_path = project:get_path()
+    local project_types_paths = project:get_project_types_paths()
 
     -- TODO check if some project jobs are running and stop them
     projects[project:get_hash()] = nil
     project = nil
 
     vim.schedule(function()
-        local p = load_project(path, project_type_keys)
+        local p = load_project(project_path, project_types_paths)
         for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
             local hash = get_project_hash(bufnr)
             if hash == p:get_hash() then p:call_buffer_on_attach(bufnr) end
@@ -70,24 +67,30 @@ local function config_changed(config)
 end
 
 -- called when project root is detected
-local function on_project_folder_and_types_detected(project_folder_and_types, bufnr)
-    log('Root detected:', vim.inspect(project_folder_and_types), 'for bufnr', bufnr)
-    local path = project_folder_and_types.path
-    local project_types_keys = project_folder_and_types.project_types_keys
+local function on_project_types_detected(project_types, bufnr)
+    log('Root detected:', vim.inspect(project_types), 'for bufnr', bufnr)
+    local project_root = nil
 
-    -- p.dir is nil when no root is detected
-    if path == nil then return end
+    -- shortest project type dir is project root
+    for _, tp in pairs(project_types) do
+        if project_root == nil then
+            project_root = tp
+        else
+            if string.len(project_root) > string.len(tp) then project_root = tp end
+        end
+    end
+    if project_root == nil then return end
 
-    change_root(path)
+    change_root(project_root)
 
-    local hash = configuration.project_hash(path)
+    local hash = configuration.project_hash(project_root)
 
     -- mark current buffer that it belongs to project
     set_project_hash(hash, bufnr)
 
     -- return already loaded project
     local project = projects[hash]
-    if project == nil then project = load_project(path, project_types_keys) end
+    if project == nil then project = load_project(project_root, project_types) end
 
     -- call buffer on attach handlers
     project:call_buffer_on_attach(bufnr)
@@ -121,12 +124,10 @@ local function find_project(bufnr)
 
     log('Finding root')
     -- try to find project root and project types
-    root.find_project(
-        basepath:parent().filename,
-        function(project_folder_and_types)
-            on_project_folder_and_types_detected(project_folder_and_types, bufnr)
-        end
-    )
+    root.find_project_types(basepath:parent().filename, function(project_types)
+        log('Found project types:', vim.inspect(project_types))
+        on_project_types_detected(project_types, bufnr)
+    end)
 end
 
 local function is_buffer_valid()
@@ -304,6 +305,9 @@ function M.setup(config)
     register_telescope_extension()
 
     if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
+
+    NeodoDebugEnabled = global_settings.debug
+
     M.handle_startup()
 end
 
