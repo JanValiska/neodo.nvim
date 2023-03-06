@@ -35,11 +35,8 @@ local function find_index_file(reply_dir)
         search_pattern = filter,
         hidden = true,
     })
-    if items then
-        assert(vim.tbl_count(items) == 1, 'None or multiple index files found')
-        return items[1]
-    end
-    return nil
+    if not items or vim.tbl_count(items) == 0 or vim.tbl_count(items) > 1 then return nil end
+    return items[1]
 end
 
 function CodeModel:parse_target_model(model)

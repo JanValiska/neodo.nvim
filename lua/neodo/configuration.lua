@@ -4,6 +4,7 @@ local neodo_folder = '.neodo'
 local dp = vim.fn.stdpath('data')
 local base_data_path = dp .. '/neodo'
 local settings = require('neodo.settings')
+local log = require('neodo.log')
 local Path = require('plenary.path')
 
 function M.project_hash(project_path) return vim.fn.sha256(project_path) end

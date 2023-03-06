@@ -3,6 +3,7 @@ local M = {}
 local notify = require('neodo.notify')
 local config = require('neodo.project_type.cmake.config')
 local commands = require('neodo.project_type.cmake.commands')
+local log = require('neodo.log')
 local Path = require('plenary.path')
 
 M.register = function()
@@ -13,7 +14,16 @@ M.register = function()
         on_attach = {
             function(ctx)
                 local function load_config() config.load(ctx.project, ctx.project_type) end
-                ctx.project_type.has_conan = Path:new(ctx.project:get_path(), 'conanfile.txt'):exists()
+                local function any_of_exists(path, patterns)
+                    log('Searching', vim.inspect(patterns), 'in', vim.inspect(path))
+                    for _, pattern in ipairs(patterns) do
+                        local exists = Path:new(path, pattern):exists()
+                        if exists then return true end
+                    end
+                    return false
+                end
+                ctx.project_type.has_conan =
+                    any_of_exists(ctx.project_type.path, { 'conanfile.txt', 'conanfile.py' })
 
                 if not ctx.project:get_config_file() then
                     ctx.project:create_config_file(function(result)

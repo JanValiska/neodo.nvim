@@ -109,9 +109,9 @@ function Profile:set_name(name) self.name = name end
 
 function Profile:get_build_dir() return self.build_directory.filename end
 
-function Profile:get_root_dir() return self.project:get_path() end
+function Profile:get_project_path() return self.project:get_path() end
 
-function Profile:get_source_dir() return self.project:get_path() end
+function Profile:get_source_dir() return self.cmake_project.path end
 
 function Profile:set_build_dir(dir)
     self.build_directory = Path:new({ dir })

@@ -4,6 +4,7 @@ local global_settings = require('neodo.settings')
 local notify = require('neodo.notify')
 local uuid_generator = require('neodo.uuid')
 local os = require('os')
+local log = require('neodo.log')
 
 -- list of currently running jobs
 local command_contexts = {}
@@ -146,6 +147,8 @@ local function start_cmd(command, project, project_type)
     local cwd = (type(command.cwd) == 'function' and command.cwd({ project = project, project_type = project_type }))
         or (type(command.cwd) == 'string' and command.cwd)
         or project:get_path()
+
+    log("Starting", vim.inspect(cmd), "with cwd", cwd)
 
     local opts = {
         cwd = cwd,

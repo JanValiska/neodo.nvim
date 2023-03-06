@@ -169,7 +169,7 @@ local function create_profile(ctx)
                                 end
                                 local suggested_build_directory = Path
                                     :new(
-                                        ctx.project:get_path(),
+                                        ctx.project_type.path,
                                         'build-'
                                             .. build_type
                                             .. '-'
@@ -287,6 +287,8 @@ function M.configure(opts)
             functions.switch_compile_commands(profile)
             config.save(ctx.project, cmake_project)
         end
+
+    opts.cwd = opts.cwd or function(ctx) return ctx.project_type.path end
     return opts
 end
 
@@ -466,11 +468,11 @@ function M.conan_install(opts)
                 cmd = utils.tbl_append(cmd, { '--profile', profile:get_conan_profile() })
             end
             local remote = profile:get_conan_remote()
-            if remote then
-                cmd = utils.tbl_append(cmd, { '-r', remote })
-            end
+            if remote then cmd = utils.tbl_append(cmd, { '-r', remote }) end
             return utils.tbl_append(cmd, { '-u', '-if', profile:get_build_dir(), '.' })
         end
+
+    opts.cwd = opts.cwd or function(ctx) return ctx.project_type.path end
 
     opts.on_success = opts.on_success
         or function(ctx)

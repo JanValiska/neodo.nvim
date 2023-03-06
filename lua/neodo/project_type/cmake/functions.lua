@@ -11,7 +11,7 @@ end
 
 function M.switch_compile_commands(profile)
     if profile:is_configured() then
-        local root = Path:new(profile:get_root_dir(), 'compile_commands.json')
+        local root = Path:new(profile:get_project_path(), 'compile_commands.json')
         local build = Path:new(profile:get_build_dir(), 'compile_commands.json')
         local cwd = vim.loop.cwd()
         if root:exists() then root:rm() end

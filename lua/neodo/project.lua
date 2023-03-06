@@ -2,21 +2,18 @@ local notify = require('neodo.notify')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
 local configuration = require('neodo.configuration')
+local log = require('neodo.log')
 local Path = require('plenary.path')
 
 local Project = {}
 
 local function merge_custom_config(config, custom_config)
-    if custom_config == nil then
-        return config
-    end
+    if custom_config == nil then return config end
     return utils.tbl_deep_extend('force', config, custom_config)
 end
 
 local function strip_user_project_settings(user_settings)
-    if user_settings == nil then
-        return
-    end
+    if user_settings == nil then return end
     local to_strip = { 'path', 'hash', 'data_path', 'config_file', 'last_command' }
     for _, v in ipairs(to_strip) do
         user_settings[v] = nil
@@ -26,18 +23,14 @@ end
 local function fix_command_names(project)
     if project.commands then
         for key, command in pairs(project.commands) do
-            if not command.name then
-                command.name = key
-            end
+            if not command.name then command.name = key end
         end
     end
 
     for _, project_type in pairs(project.project_types) do
         if project_type.commands then
             for key, command in pairs(project_type.commands) do
-                if not command.name then
-                    command.name = key
-                end
+                if not command.name then command.name = key end
             end
         end
     end
@@ -45,15 +38,17 @@ end
 
 local function split_command_key(command_key)
     local items = utils.split_string(command_key, '.')
-    if items[2] then
-        return { project_type = items[1], key = items[2] }
-    end
+    if items[2] then return { project_type = items[1], key = items[2] } end
     return { project_type = nil, key = items[1] }
 end
 
 local function command_enabled(command, project, project_type)
     if command.enabled and type(command.enabled) == 'function' then
-        return command.enabled({ params = command.params, project = project, project_type = project_type })
+        return command.enabled({
+            params = command.params,
+            project = project,
+            project_type = project_type,
+        })
     end
     return true
 end
@@ -71,9 +66,7 @@ local function table_copy(datatable)
 end
 
 function Project:new(global_settings, path, types)
-    local function to_absolute(p)
-        return Path:new(Path:new(p):absolute())
-    end
+    local function to_absolute(p) return Path:new(Path:new(p):absolute()):absolute() end
 
     local props = {
         path = to_absolute(path),
@@ -87,18 +80,19 @@ function Project:new(global_settings, path, types)
         project_types = {},
     }
 
-
     -- apply global settings
     props.commands = table_copy(global_settings.commands)
     props.on_attach = vim.list_extend(props.on_attach, global_settings.on_attach or {})
-    props.buffer_on_attach = vim.list_extend(props.buffer_on_attach, global_settings.buffer_on_attach or {})
+    props.buffer_on_attach =
+        vim.list_extend(props.buffer_on_attach, global_settings.buffer_on_attach or {})
     for key, type_path in pairs(types) do
         props.project_types[key] = table_copy(global_settings.project_types[key])
         props.project_types[key].path = to_absolute(type_path)
     end
 
     -- apply project specific settings
-    props.config_file, props.data_path = configuration.get_project_config_and_datapath(props.path.filename)
+    props.config_file, props.data_path =
+        configuration.get_project_config_and_datapath(props.path)
     if props.config_file ~= nil then
         local user_project_settings = dofile(props.config_file) or {}
         strip_user_project_settings(user_project_settings)
@@ -112,21 +106,13 @@ function Project:new(global_settings, path, types)
     return props
 end
 
-function Project:get_path()
-    return self.path.filename
-end
+function Project:get_path() return self.path end
 
-function Project:get_hash()
-    return self.hash
-end
+function Project:get_hash() return self.hash end
 
-function Project:get_data_path()
-    return self.data_path
-end
+function Project:get_data_path() return self.data_path end
 
-function Project:get_config_file()
-    return self.config_file
-end
+function Project:get_config_file() return self.config_file end
 
 function Project:create_config_file(callback)
     if self.config_file and self.data_path then
@@ -144,9 +130,7 @@ function Project:create_config_file(callback)
     end
 end
 
-function Project:get_project_types()
-    return self.project_types
-end
+function Project:get_project_types() return self.project_types end
 
 function Project:run(command_key)
     if type(command_key) ~= 'string' or command_key == '' then
@@ -194,9 +178,7 @@ function Project:call_buffer_on_attach(bufnr)
     end
     if self.buffer_on_attach and type(self.buffer_on_attach) == 'table' then
         for _, f in ipairs(self.buffer_on_attach) do
-            if type(f) == 'function' then
-                f({ bufnr = bufnr, project = self })
-            end
+            if type(f) == 'function' then f({ bufnr = bufnr, project = self }) end
         end
     end
 end
@@ -205,17 +187,13 @@ function Project:call_on_attach()
     for _, t in pairs(self.project_types) do
         if t.on_attach and type(t.on_attach) == 'table' then
             for _, f in ipairs(t.on_attach) do
-                if type(f) == 'function' then
-                    f({ project = self, project_type = t })
-                end
+                if type(f) == 'function' then f({ project = self, project_type = t }) end
             end
         end
     end
     if self.on_attach and type(self.on_attach) == 'table' then
         for _, f in ipairs(self.on_attach) do
-            if type(f) == 'function' then
-                f({ project = self })
-            end
+            if type(f) == 'function' then f({ project = self }) end
         end
     end
 end
@@ -239,7 +217,10 @@ function Project:get_commands_keys_names()
                     end
                     table.insert(
                         keys_names,
-                        { key = project_type_key .. '.' .. command_key, name = pt_name .. ': ' .. command.name }
+                        {
+                            key = project_type_key .. '.' .. command_key,
+                            name = pt_name .. ': ' .. command.name,
+                        }
                     )
                 end
             end
@@ -251,9 +232,7 @@ end
 function Project:get_commands_keys()
     local keys = {}
     for key, command in pairs(self.commands) do
-        if command_enabled(command, self) then
-            table.insert(keys, key)
-        end
+        if command_enabled(command, self) then table.insert(keys, key) end
     end
     for project_type_key, project_type in pairs(self.project_types) do
         if project_type.commands then
@@ -267,13 +246,11 @@ function Project:get_commands_keys()
     return keys
 end
 
-function Project:get_project_types_keys()
-    return vim.tbl_keys(self.project_types)
-end
+function Project:get_project_types_keys() return vim.tbl_keys(self.project_types) end
 
 function Project:get_project_types_paths()
     local types = {}
-    for key,t in pairs(self.project_types) do
+    for key, t in pairs(self.project_types) do
         types[key] = t.path
     end
     return types
