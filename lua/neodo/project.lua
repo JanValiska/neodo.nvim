@@ -2,7 +2,6 @@ local notify = require('neodo.notify')
 local utils = require('neodo.utils')
 local runner = require('neodo.runner')
 local configuration = require('neodo.configuration')
-local log = require('neodo.log')
 local Path = require('plenary.path')
 
 local Project = {}
