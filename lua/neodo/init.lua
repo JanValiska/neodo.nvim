@@ -206,13 +206,14 @@ function M.run_last()
 end
 
 function M.neodo()
-    local hash = get_project_hash()
-    if hash == nil then
-        notify.warning('Buffer not attached to any project')
-        return
-    else
-        picker.pick_command(projects)
+    local cwd = vim.loop.cwd()
+    for _, project in pairs(projects) do
+        if project:get_path() == cwd then
+            picker.pick_command(project)
+            return
+        end
     end
+    notify.warning('No project associated with current working directory')
 end
 
 function M.edit_project_settings()

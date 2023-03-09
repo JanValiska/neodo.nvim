@@ -2,8 +2,7 @@ local M = {}
 
 local notify = require('neodo.notify')
 
-function M.pick_command(projects)
-    local project = projects[vim.b.neodo_project_hash]
+function M.pick_command(project)
     local results = project:get_commands_keys_names()
 
     local function show_nice_name(item)
