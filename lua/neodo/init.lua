@@ -197,12 +197,14 @@ function M.run(command_key)
 end
 
 function M.run_last()
-    local hash = get_project_hash()
-    if hash == nil then
-        notify.warning('Buffer not attached to any project')
-        return
+    local cwd = vim.loop.cwd()
+    for _, project in pairs(projects) do
+        if project:get_path() == cwd then
+            project:run_last_command()
+            return
+        end
     end
-    projects[hash]:run_last_command()
+    notify.warning('No project associated with current working directory')
 end
 
 function M.neodo()

@@ -5,6 +5,7 @@ local notify = require('neodo.notify')
 local uuid_generator = require('neodo.uuid')
 local os = require('os')
 local log = require('neodo.log')
+local utils = require('neodo.utils')
 
 -- list of currently running jobs
 local command_contexts = {}
@@ -31,13 +32,13 @@ local function close_terminal_on_success(command, job)
         and global_settings.terminal_close_on_success
         and not command.keep_terminal_open
     then
-        vim.api.nvim_buf_delete(job.buf_id, {})
+        pcall(vim.api.nvim_buf_delete, job.buf_id, {})
     end
 end
 
 local function close_terminal_on_fail(command, job)
     if command.cmd and not command.background and command.errorformat and global_settings.terminal_close_on_error then
-        vim.api.nvim_buf_delete(job.buf_id, {})
+        pcall(vim.api.nvim_buf_delete, job.buf_id, {})
     end
 end
 
@@ -174,12 +175,12 @@ local function start_cmd(command, project, project_type)
         end
     else
         executor = function()
-            vim.api.nvim_command('bot 15new')
+            vim.api.nvim_command('enew')
             command_context.job_id = vim.fn.termopen(cmd, opts)
-            vim.wo.number = false
-            vim.wo.relativenumber = false
             command_context.buf_id = vim.fn.bufnr()
-            vim.api.nvim_buf_set_option(command_context.buf_id, 'buflisted', false)
+            utils.set_buf_variable(command_context.buf_id, "neodo_project_hash", project:get_hash())
+            local name = type(cmd) == "table" and utils.tbl_join(cmd, ' ') or cmd
+            vim.api.nvim_buf_set_name(command_context.buf_id, name)
             vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWinEnter' }, {
                 buffer = command_context.buf_id,
                 callback = function()
