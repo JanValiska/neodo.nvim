@@ -15,7 +15,7 @@ M.register = function()
             function(ctx)
                 local function load_config() config.load(ctx.project, ctx.project_type) end
                 local function any_of_exists(path, patterns)
-                    log('Searching', vim.inspect(patterns), 'in', vim.inspect(path))
+                    log.debug('Searching', vim.inspect(patterns), 'in', vim.inspect(path))
                     for _, pattern in ipairs(patterns) do
                         local exists = Path:new(path, pattern):exists()
                         if exists then return true end

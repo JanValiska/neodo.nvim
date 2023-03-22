@@ -149,7 +149,7 @@ local function start_cmd(command, project, project_type)
         or (type(command.cwd) == 'string' and command.cwd)
         or project:get_path()
 
-    log("Starting", vim.inspect(cmd), "with cwd", cwd)
+    log.debug("Starting", vim.inspect(cmd), "with cwd", cwd)
 
     local opts = {
         cwd = cwd,

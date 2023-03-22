@@ -8,7 +8,7 @@ local global_settings = require('neodo.settings')
 local function find_project_types(root, registered_project_types)
     local project_types = {}
     while true do
-        log('Scanning:', root)
+        log.debug('Scanning:', root)
         local data = vim.loop.fs_scandir(root)
         if not data then break end
 

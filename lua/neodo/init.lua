@@ -17,19 +17,19 @@ local Path = require('plenary.path')
 
 local function set_project_hash(hash, bufnr)
     bufnr = bufnr or vim.api.nvim_win_get_buf(0)
-    log('Setting hash', hash, 'for buffer', bufnr)
+    log.debug('Setting hash', hash, 'for buffer', bufnr)
     return utils.set_buf_variable(bufnr, 'neodo_project_hash', hash)
 end
 
 local function get_project_hash(bufnr)
     bufnr = bufnr or vim.api.nvim_win_get_buf(0)
-    log('Getting hash of', bufnr)
+    log.debug('Getting hash of', bufnr)
     return utils.get_buf_variable(bufnr, 'neodo_project_hash')
 end
 
 local function change_root(dir)
     if global_settings.change_root then
-        log('Changing root to:', dir)
+        log.info('Changing root to:', dir)
         vim.api.nvim_set_current_dir(dir)
         if global_settings.change_root_notify then notify.info(dir, 'Working directory changed') end
     end
@@ -40,6 +40,7 @@ local function load_project(project_root, project_types)
     local project = Project:new(global_settings, project_root, project_types)
     project:call_on_attach()
     projects[project:get_hash()] = project
+    log.debug('Loaded project:', vim.inspect(project))
     return project
 end
 
@@ -68,7 +69,7 @@ end
 
 -- called when project root is detected
 local function on_project_types_detected(project_types, bufnr)
-    log('Root detected:', vim.inspect(project_types), 'for bufnr', bufnr)
+    log.debug('Root detected:', vim.inspect(project_types), 'for bufnr', bufnr)
     local project_root = nil
 
     -- shortest project type dir is project root
@@ -108,13 +109,13 @@ local function find_project(bufnr)
     if basepath == nil then return end
 
     -- if current buffer belongs to already loaded project then just attach buffer
-    log('Finding', basepath.filename, 'in already loaded projects')
+    log.debug('Finding', basepath.filename, 'in already loaded projects')
     for hash, project in pairs(projects) do
-        log('Looking if basepath', basepath.filename, 'is in', project:get_path())
+        log.debug('Looking if basepath', basepath.filename, 'is in', project:get_path())
         local start, stop = string.find(basepath.filename, project:get_path(), 1, true)
-        log('Find results:', vim.inspect(start), vim.inspect(stop))
+        log.debug('Find results:', vim.inspect(start), vim.inspect(stop))
         if start and stop and start == 1 then
-            log('Basepath', basepath.filename, 'is in', project:get_path())
+            log.debug('Basepath', basepath.filename, 'is in', project:get_path())
             change_root(project:get_path())
             set_project_hash(hash, bufnr)
             project:call_buffer_on_attach(bufnr)
@@ -122,10 +123,10 @@ local function find_project(bufnr)
         end
     end
 
-    log('Finding root')
+    log.debug('Finding root')
     -- try to find project root and project types
     root.find_project_types(basepath:parent().filename, function(project_types)
-        log('Found project types:', vim.inspect(project_types))
+        log.debug('Found project types:', vim.inspect(project_types))
         on_project_types_detected(project_types, bufnr)
     end)
 end
@@ -147,19 +148,19 @@ end
 
 -- called when the buffer is read first time or using :e
 function M.handle_buffer(bufnr)
-    log('Handling buffer:', bufnr)
+    log.debug('Handling buffer:', bufnr)
     if not is_buffer_valid() then
-        log('Buffer', bufnr, 'not valid')
+        log.debug('Buffer', bufnr, 'not valid')
         return
     end
 
     local hash = get_project_hash(bufnr)
-    log('Buffer hash is', hash)
+    log.debug('Buffer hash is', hash)
     if hash ~= nil then
-        log('Buffer', bufnr, 'already loaded')
+        log.debug('Buffer', bufnr, 'already loaded')
         change_root(projects[hash]:get_path())
     else
-        log('Buffer', bufnr, 'NOT loaded')
+        log.debug('Buffer', bufnr, 'NOT loaded')
         find_project(bufnr)
     end
 end
@@ -168,7 +169,7 @@ local startup_done = false
 
 function M.handle_startup()
     if startup_done then return end
-    log('Handling startup')
+    log.debug('Handling startup')
 
     for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
         M.handle_buffer(tonumber(bufnr))
@@ -177,8 +178,8 @@ function M.handle_startup()
     startup_done = true
 end
 
-function M.get_project()
-    local hash = get_project_hash()
+function M.get_project(bufnr)
+    local hash = get_project_hash(bufnr)
     return hash and projects[hash] or nil
 end
 
@@ -309,7 +310,7 @@ function M.setup(config)
 
     if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
 
-    NeodoDebugEnabled = global_settings.debug
+    NeodoLogLevel = global_settings.log_level
 
     M.handle_startup()
 end
