@@ -225,6 +225,7 @@ function Project:get_commands_keys_names()
             end
         end
     end
+    table.sort(keys_names, function(a,b) return a.name < b.name end)
     return keys_names
 end
 
@@ -242,6 +243,7 @@ function Project:get_commands_keys()
             end
         end
     end
+    table.sort(keys)
     return keys
 end
 
