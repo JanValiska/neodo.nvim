@@ -179,14 +179,6 @@ local function start_cmd(command, project, project_type)
             command_context.job_id = vim.fn.termopen(cmd, opts)
             command_context.buf_id = vim.fn.bufnr()
             utils.set_buf_variable(command_context.buf_id, "neodo_project_hash", project:get_hash())
-            local name = type(cmd) == "table" and utils.tbl_join(cmd, ' ') or cmd
-            vim.api.nvim_buf_set_name(command_context.buf_id, name)
-            vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWinEnter' }, {
-                buffer = command_context.buf_id,
-                callback = function()
-                    vim.api.nvim_command('starti')
-                end,
-            })
             vim.schedule(function()
                 vim.api.nvim_command('starti')
             end)

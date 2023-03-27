@@ -276,7 +276,6 @@ function Profile:get_info_node()
         end
     end
     return {
-        NuiTree.Node({ text = 'UUID: ' .. self.key }),
         NuiTree.Node({ text = 'Build directory: ' .. self:get_build_dir() }),
         get_build_configuration_info(),
         NuiTree.Node({ text = 'Build type: ' .. self.build_type }),

@@ -671,13 +671,17 @@ function M.get_info_node(ctx)
 
     if vim.tbl_count(cmake_project.config.profiles) ~= 0 then
         local profileNodes = {}
-        for key, profile in pairs(cmake_project.config.profiles) do
+        for _, profile in pairs(cmake_project.config.profiles) do
             local profileNode = NuiTree.Node({ text = profile:get_name() }, profile:get_info_node())
-            if profile == selected then profileNode.text = profileNode.text .. ' (current)' end
-            profileNode.id = key
+            if profile == selected then
+                profileNode.text = profileNode.text .. ' (current)'
+                profileNode:expand()
+            end
             table.insert(profileNodes, profileNode)
         end
-        table.insert(nodes, NuiTree.Node({ text = 'Profiles:' }, profileNodes))
+        local profiles_node = NuiTree.Node({ text = 'Profiles:' }, profileNodes)
+        profiles_node:expand()
+        table.insert(nodes, profiles_node)
     else
         table.insert(nodes, 'No profile available')
     end

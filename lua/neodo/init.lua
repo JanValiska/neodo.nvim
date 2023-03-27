@@ -189,12 +189,14 @@ function M.has_config()
 end
 
 function M.run(command_key)
-    local hash = get_project_hash()
-    if hash == nil then
-        notify.warning('Buffer not attached to any project')
-        return
+    local cwd = vim.loop.cwd()
+    for _, project in pairs(projects) do
+        if project:get_path() == cwd then
+            project:run(command_key)
+            return
+        end
     end
-    projects[hash]:run(command_key)
+    notify.warning('No project associated with current working directory')
 end
 
 function M.run_last()
@@ -242,7 +244,15 @@ function M.edit_project_settings()
     end
 end
 
-function M.info() require('neodo.info').show(projects) end
+function M.info()
+    for k,v in pairs(projects) do
+                log.debug(vim.inspect(v.data_path))
+        for pk,pv in pairs(v.project_types.cmake.config.profiles) do
+                log.debug(vim.inspect(pk))
+        end
+    end
+    require('neodo.info').show(projects)
+end
 
 local function handle_vim_command(command_key)
     if command_key == nil or command_key == '' then
@@ -272,7 +282,7 @@ local function register_telescope_extension()
     telescope.load_extension('neodo')
 end
 
-function M.setup(config)
+function M.setup(config, neodo_host_config)
     local neodo_basic_autocommands_group =
         vim.api.nvim_create_augroup('NeodoBasicAutocommands', { clear = true })
 
@@ -310,7 +320,17 @@ function M.setup(config)
 
     if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
 
-    NeodoLogLevel = global_settings.log_level
+    if neodo_host_config then
+        local host_config_f, err = loadfile(neodo_host_config)
+        if not err and host_config_f then
+            global_settings = vim.tbl_deep_extend('force', global_settings, host_config_f() or {})
+            print('neodo_host_config loaded...')
+        else
+            print('No neodo_host_config loaded...')
+        end
+    end
+
+    log.set_log_level(global_settings.log_level)
 
     M.handle_startup()
 end

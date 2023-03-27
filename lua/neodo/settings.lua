@@ -13,6 +13,15 @@ local M = {
                 require('neodo').info()
             end,
         },
+        edit_project_settings = {
+            name = 'Edit project settings',
+            fn = function()
+                require('neodo').edit_project_settings()
+            end,
+            enabled = function()
+                return require('neodo').get_project() ~= nil
+            end
+        },
     }
 }
 

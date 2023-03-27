@@ -14,7 +14,7 @@ local Level = {
     Debug = 4,
 }
 
-local function log_level() return NeodoLogLevel or Level.Info end
+local log_level = Level.Info
 
 local function log_level_to_string(level)
     if level == Level.None then return 'None' end
@@ -43,14 +43,13 @@ end
 
 local function log(...)
     if not logfile then
-        local err = open_logfile()
-        if err then return end
+        if not open_logfile() then return end
     end
 
     local parts = {}
     table.insert(
         parts,
-        string.format('[%s][%s]', os.date(log_date_format), log_level_to_string(log_level()))
+        string.format('[%s][%s]', os.date(log_date_format), log_level_to_string(log_level))
     )
 
     utils.tbl_append(parts, { ... })
@@ -63,23 +62,27 @@ local M = {}
 
 M.level = Level
 
+M.set_log_level = function(level)
+    log_level = level
+end
+
 M.error = function(...)
-    if log_level() < Level.Error then return end
+    if log_level < Level.Error then return end
     log(...)
 end
 
 M.warning = function(...)
-    if log_level() < Level.Warning then return end
+    if log_level < Level.Warning then return end
     log(...)
 end
 
 M.info = function(...)
-    if log_level() < Level.Info then return end
+    if log_level < Level.Info then return end
     log(...)
 end
 
 M.debug = function(...)
-    if log_level() < Level.Debug then return end
+    if log_level < Level.Debug then return end
     log(...)
 end
 
