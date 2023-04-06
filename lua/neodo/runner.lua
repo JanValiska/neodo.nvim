@@ -12,16 +12,12 @@ local command_contexts = {}
 
 local function find_command_by_job_id(job_id)
     for uuid, command_context in pairs(command_contexts) do
-        if command_context.job_id == job_id then
-            return uuid, command_context
-        end
+        if command_context.job_id == job_id then return uuid, command_context end
     end
 end
 
 local function should_notify(command)
-    if command.notify ~= nil then
-        return command.notify
-    end
+    if command.notify ~= nil then return command.notify end
     return true
 end
 
@@ -37,7 +33,12 @@ local function close_terminal_on_success(command, job)
 end
 
 local function close_terminal_on_fail(command, job)
-    if command.cmd and not command.background and command.errorformat and global_settings.terminal_close_on_error then
+    if
+        command.cmd
+        and not command.background
+        and command.errorformat
+        and global_settings.terminal_close_on_error
+    then
         pcall(vim.api.nvim_buf_delete, job.buf_id, {})
     end
 end
@@ -62,12 +63,13 @@ local function on_event(job_id, data, event)
         local command = command_context.command
 
         if data == 0 then
-            if should_notify(command) then
-                notify.info('SUCCESS', command.name)
-            end
+            if should_notify(command) then notify.info('SUCCESS', command.name) end
             close_terminal_on_success(command, command_context)
             if command.on_success then
-                command.on_success({ project = command_context.project, project_type = command_context.project_type })
+                command.on_success({
+                    project = command_context.project,
+                    project_type = command_context.project_type,
+                })
             end
         else
             if data == 130 then
@@ -77,16 +79,17 @@ local function on_event(job_id, data, event)
                 notify.error('FAILED with: ' .. data, command.name)
 
                 close_terminal_on_fail(command, command_context)
-                if command.errorformat then
-                    vim.fn.setqflist({}, ' ', {
-                        title = command.cmd,
-                        efm = command.errorformat or '%m',
-                        lines = command_context.output_lines,
-                    })
-                    vim.api.nvim_command('copen')
-                    vim.cmd('wincmd p')
-                end
             end
+        end
+
+        if command.errorformat then
+            vim.fn.setqflist({}, ' ', {
+                title = command.cmd,
+                efm = command.errorformat or '%m',
+                lines = command_context.output_lines,
+            })
+            --vim.api.nvim_command('copen')
+            --vim.cmd('wincmd p')
         end
 
         command_contexts[uuid] = nil
@@ -100,9 +103,7 @@ local function start_function_command(command, project, project_type)
     else
         ctx.params = command.params
     end
-    if should_notify(command) then
-        notify.info('INVOKING', command.name)
-    end
+    if should_notify(command) then notify.info('INVOKING', command.name) end
     local fuuid = uuid_generator()
     command_contexts[fuuid] = {
         started_at = os.time(),
@@ -112,9 +113,7 @@ local function start_function_command(command, project, project_type)
     }
     vim.schedule(function()
         command.fn(ctx)
-        if should_notify(command) then
-            notify.info('DONE', command.name)
-        end
+        if should_notify(command) then notify.info('DONE', command.name) end
         if command.on_success and type(command.on_success) == 'function' then
             ctx.params = nil
             command.on_success(ctx)
@@ -132,7 +131,10 @@ local function get_cmd_string(command, project, project_type)
             ctx.params = command.params
         end
         return command.cmd(ctx)
-    elseif type(command.cmd) == 'string' or (type(command.cmd) == 'table' and vim.tbl_islist(command.cmd)) then
+    elseif
+        type(command.cmd) == 'string'
+        or (type(command.cmd) == 'table' and vim.tbl_islist(command.cmd))
+    then
         return command.cmd
     end
     return nil
@@ -145,11 +147,14 @@ local function start_cmd(command, project, project_type)
         return false
     end
 
-    local cwd = (type(command.cwd) == 'function' and command.cwd({ project = project, project_type = project_type }))
+    local cwd = (
+        type(command.cwd) == 'function'
+        and command.cwd({ project = project, project_type = project_type })
+    )
         or (type(command.cwd) == 'string' and command.cwd)
         or project:get_path()
 
-    log.debug("Starting", vim.inspect(cmd), "with cwd", cwd)
+    log.debug('Starting', vim.inspect(cmd), 'with cwd', cwd)
 
     local opts = {
         cwd = cwd,
@@ -170,18 +175,14 @@ local function start_cmd(command, project, project_type)
 
     local executor = nil
     if command.background then
-        executor = function()
-            command_context.job_id = vim.fn.jobstart(cmd, opts)
-        end
+        executor = function() command_context.job_id = vim.fn.jobstart(cmd, opts) end
     else
         executor = function()
             vim.api.nvim_command('enew')
             command_context.job_id = vim.fn.termopen(cmd, opts)
             command_context.buf_id = vim.fn.bufnr()
-            utils.set_buf_variable(command_context.buf_id, "neodo_project_hash", project:get_hash())
-            vim.schedule(function()
-                vim.api.nvim_command('starti')
-            end)
+            utils.set_buf_variable(command_context.buf_id, 'neodo_project_hash', project:get_hash())
+            vim.schedule(function() vim.api.nvim_command('starti') end)
         end
     end
 
@@ -189,22 +190,18 @@ local function start_cmd(command, project, project_type)
 
     command_contexts[uuid_generator()] = command_context
 
-    if should_notify(command) then
-        notify.info('Starting', command.name)
-    end
+    if should_notify(command) then notify.info('Starting', command.name) end
 end
 
 local function command_still_running(command)
     for _, running_command in pairs(command_contexts) do
-        if running_command.command == command then
-            return true
-        end
+        if running_command.command == command then return true end
     end
     return false
 end
 
 function M.run_project_command(command, project, project_type)
-    if command_still_running(command) then
+    if command_still_running(command) and not command.multirun then
         notify.warning('Command already started')
         return false
     end
@@ -223,12 +220,8 @@ function M.run_project_command(command, project, project_type)
     return false
 end
 
-function M.get_jobs_count()
-    return vim.tbl_count(command_contexts)
-end
+function M.get_jobs_count() return vim.tbl_count(command_contexts) end
 
-function M.get_jobs()
-    return command_contexts
-end
+function M.get_jobs() return command_contexts end
 
 return M
