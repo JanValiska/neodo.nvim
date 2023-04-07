@@ -32,8 +32,7 @@ local function make_popup()
             readonly = false,
         },
         win_options = {
-            winblend = 10,
-            winhighlight = 'Normal:Normal,FloatBorder:FloatBorder',
+            winhighlight = 'FloatBorder:FloatBorder,FloatBorder:FloatBorder',
         },
     })
 end
