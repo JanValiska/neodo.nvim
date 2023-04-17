@@ -508,23 +508,21 @@ function M.select_conan_profile(opts)
 
     opts.fn = opts.fn
         or function(ctx)
-            picker.pick(
-                'Select conan profile: ',
-                utils.get_output('conan profile list'),
-                function(conan_profile)
-                    local cmake_project = ctx.project_type
-                    local profile = functions.get_selected_profile(cmake_project)
-                    if not profile then return end
-                    profile:set_conan_profile(conan_profile)
-                    config.save(ctx.project, cmake_project, function()
-                        if cmake_project.conan_auto_install == true then
-                            ctx.project:run('cmake.conan_install')
-                        elseif cmake_project.autoconfigure == true then
-                            ctx.project:run('cmake.configure')
-                        end
-                    end)
-                end
-            )
+            local items = utils.get_output('conan profile list')
+            if ctx.project_type.conan_version == 2 then table.remove(items, 1) end
+            picker.pick('Select conan profile: ', items, function(conan_profile)
+                local cmake_project = ctx.project_type
+                local profile = functions.get_selected_profile(cmake_project)
+                if not profile then return end
+                profile:set_conan_profile(conan_profile)
+                config.save(ctx.project, cmake_project, function()
+                    if cmake_project.conan_auto_install == true then
+                        ctx.project:run('cmake.conan_install')
+                    elseif cmake_project.autoconfigure == true then
+                        ctx.project:run('cmake.configure')
+                    end
+                end)
+            end)
         end
 
     return opts
