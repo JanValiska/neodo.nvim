@@ -1,5 +1,6 @@
 local M = {}
 
+local utils = require('neodo.utils')
 local notify = require('neodo.notify')
 local config = require('neodo.project_type.cmake.config')
 local commands = require('neodo.project_type.cmake.commands')
@@ -24,6 +25,14 @@ M.register = function()
                 end
                 ctx.project_type.has_conan =
                     any_of_exists(ctx.project_type.path, { 'conanfile.txt', 'conanfile.py' })
+                local function conan_version()
+                    local lines = utils.get_output('conan --version')
+                    local semver = utils.split_string(lines[1], ' ')[3]
+                    return utils.split_string(semver, '.')[1]
+                end
+                local noerr, version_str = pcall(conan_version)
+                ctx.project_type.conan_version = not noerr or tonumber(version_str)
+                log.debug("Detected conan version", vim.inspect(ctx.project_type.conan_version))
 
                 if not ctx.project:get_config_file() then
                     ctx.project:create_config_file(function(result)
@@ -44,6 +53,7 @@ M.register = function()
         autoconfigure = true,
         conan_auto_install = true,
         has_conan = false,
+        conan_version = nil,
         buffer_on_attach = {},
         config = { selected_target = nil, selected_profile = nil, profiles = {} },
         code_models = {},

@@ -465,11 +465,26 @@ function M.conan_install(opts)
             if not profile then return end
             local cmd = { 'conan', 'install' }
             if profile:has_conan_profile() then
-                cmd = utils.tbl_append(cmd, { '--profile', profile:get_conan_profile() })
+                if cmake_project.conan_version == 1 then
+                    cmd = utils.tbl_append(cmd, { '--profile', profile:get_conan_profile() })
+                else
+                    cmd = utils.tbl_append(cmd, {
+                        '--profile:build=' .. profile:get_conan_profile(),
+                        '--profile:host=' .. profile:get_conan_profile(),
+                    })
+                end
             end
+            table.insert(cmd, '--build=missing')
             local remote = profile:get_conan_remote()
             if remote then cmd = utils.tbl_append(cmd, { '-r', remote }) end
-            return utils.tbl_append(cmd, { '-u', '-if', profile:get_build_dir(), '.' })
+            cmd = utils.tbl_append(cmd, { '.', '-u' })
+            if cmake_project.conan_version == 1 then
+                cmd = utils.tbl_append(cmd, { '-if', profile:get_build_dir() })
+            elseif cmake_project.conan_version == 2 then
+                local output_folder = Path:new(profile:get_build_dir(), 'conan_libs')
+                cmd = utils.tbl_append(cmd, { '-of', output_folder:absolute() })
+            end
+            return cmd
         end
 
     opts.cwd = opts.cwd or function(ctx) return ctx.project_type.path end

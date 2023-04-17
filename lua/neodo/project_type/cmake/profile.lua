@@ -145,6 +145,12 @@ function Profile:get_configure_command()
             table.insert(cmd, opts)
         end
     end
+
+    if self.cmake_project.has_conan and self.cmake_project.conan_version == 2 then
+        local toolchainPath = Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
+        table.insert(cmd, "-DCMAKE_TOOLCHAIN_FILE="..toolchainPath:absolute())
+    end
+
     return cmd
 end
 
@@ -214,8 +220,9 @@ end
 
 function Profile:conan_installed()
     local lockPath = Path.new(self.build_directory.filename, 'conan.lock')
-    local hasNotConan = not self.project.has_conan
-    return hasNotConan or lockPath:exists()
+    local toolchainPath = Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
+    local hasNotConan = not self.cmake_project.has_conan
+    return hasNotConan or lockPath:exists() or toolchainPath:exists()
 end
 
 function Profile:get_info_node()

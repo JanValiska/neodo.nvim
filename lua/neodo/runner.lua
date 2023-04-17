@@ -154,8 +154,6 @@ local function start_cmd(command, project, project_type)
         or (type(command.cwd) == 'string' and command.cwd)
         or project:get_path()
 
-    log.debug('Starting', vim.inspect(cmd), 'with cwd', cwd)
-
     local opts = {
         cwd = cwd,
         on_stderr = on_event,
@@ -173,6 +171,7 @@ local function start_cmd(command, project, project_type)
         output_lines = {},
     }
 
+    log.debug('Starting', vim.inspect(cmd), 'with cwd', cwd, 'with options', vim.inspect(opts))
     local executor = nil
     if command.background then
         executor = function() command_context.job_id = vim.fn.jobstart(cmd, opts) end

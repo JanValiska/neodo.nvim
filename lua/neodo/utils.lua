@@ -4,9 +4,7 @@ function M.tbl_join(tbl, sep)
     local size = vim.tbl_count(tbl)
     for i, value in ipairs(tbl) do
         r = r .. value
-        if i < size then
-            r = r .. sep
-        end
+        if i < size then r = r .. sep end
     end
     return r
 end
@@ -42,21 +40,15 @@ function M.resize(vertical, amount)
 end
 
 function M.delete_buf(bufnr)
-    if bufnr ~= nil then
-        vim.api.nvim_buf_delete(bufnr, { force = true })
-    end
+    if bufnr ~= nil then vim.api.nvim_buf_delete(bufnr, { force = true }) end
 end
 
 function M.close_win(winnr)
-    if winnr ~= nil then
-        vim.api.nvim_win_close(winnr, { force = true })
-    end
+    if winnr ~= nil then vim.api.nvim_win_close(winnr, true) end
 end
 
 function M.set_buf_variable(buf, var_name, value)
-    local s, v = pcall(function()
-        return vim.api.nvim_buf_set_var(buf, var_name, value)
-    end)
+    local s, v = pcall(function() return vim.api.nvim_buf_set_var(buf, var_name, value) end)
     if s then
         return v
     else
@@ -65,9 +57,7 @@ function M.set_buf_variable(buf, var_name, value)
 end
 
 function M.get_buf_variable(buf, var_name)
-    local s, v = pcall(function()
-        return vim.api.nvim_buf_get_var(buf, var_name)
-    end)
+    local s, v = pcall(function() return vim.api.nvim_buf_get_var(buf, var_name) end)
     if s then
         return v
     else
@@ -76,9 +66,7 @@ function M.get_buf_variable(buf, var_name)
 end
 
 function M.split_string(inputstr, delimiter)
-    if delimiter == nil then
-        delimiter = '%s'
-    end
+    if delimiter == nil then delimiter = '%s' end
     local t = {}
     for str in string.gmatch(inputstr, '([^' .. delimiter .. ']+)') do
         table.insert(t, str)
@@ -97,9 +85,7 @@ function M.get_output(command)
                     line = line:gsub('\r', '')
                     -- strip ANSI color codes
                     line = line:gsub('\27%[[0-9;mK]+', '')
-                    if line == '' then
-                        goto continue
-                    end
+                    if line == '' then goto continue end
                     table.insert(output_lines, line)
                     ::continue::
                 end
@@ -121,9 +107,9 @@ function M.get_output(command)
 end
 
 M.lines_insert_indented = function(lines, line, indent_level)
-    local indent_level = indent_level or 1
+    indent_level = indent_level or 1
     local indent_string = ''
-    for i = 1, indent_level do
+    for _ = 1, indent_level do
         indent_string = indent_string .. '\t'
     end
     table.insert(lines, indent_string .. line)
@@ -135,7 +121,11 @@ local function tbl_extend(behavior, deep_extend, ...)
     end
 
     if select('#', ...) < 2 then
-        error('wrong number of arguments (given ' .. tostring(1 + select('#', ...)) .. ', expected at least 3)')
+        error(
+            'wrong number of arguments (given '
+                .. tostring(1 + select('#', ...))
+                .. ', expected at least 3)'
+        )
     end
 
     local ret = {}
@@ -153,9 +143,7 @@ local function tbl_extend(behavior, deep_extend, ...)
                 elseif type(v) == 'table' and vim.tbl_islist(v) and not vim.tbl_isempty(v) then
                     ret[k] = vim.list_extend(ret[k] or {}, v)
                 elseif behavior ~= 'force' and ret[k] ~= nil then
-                    if behavior == 'error' then
-                        error('key found in more than one map: ' .. k)
-                    end -- Else behavior is "keep".
+                    if behavior == 'error' then error('key found in more than one map: ' .. k) end -- Else behavior is "keep".
                 else
                     ret[k] = v
                 end
@@ -165,18 +153,12 @@ local function tbl_extend(behavior, deep_extend, ...)
     return ret
 end
 
-function M.tbl_extend(behavior, ...)
-    return tbl_extend(behavior, false, ...)
-end
+function M.tbl_extend(behavior, ...) return tbl_extend(behavior, false, ...) end
 
-function M.tbl_deep_extend(behavior, ...)
-    return tbl_extend(behavior, true, ...)
-end
+function M.tbl_deep_extend(behavior, ...) return tbl_extend(behavior, true, ...) end
 
 function M.tbl_append(to, from)
-    if type(from) ~= 'table' or not vim.tbl_islist(from) then
-        return to
-    end
+    if type(from) ~= 'table' or not vim.tbl_islist(from) then return to end
     for _, v in ipairs(from) do
         table.insert(to, v)
     end
