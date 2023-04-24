@@ -324,9 +324,6 @@ function M.setup(config, neodo_host_config)
         local host_config_f, err = loadfile(neodo_host_config)
         if not err and host_config_f then
             global_settings = vim.tbl_deep_extend('force', global_settings, host_config_f() or {})
-            print('neodo_host_config loaded...')
-        else
-            print('No neodo_host_config loaded...')
         end
     end
 
