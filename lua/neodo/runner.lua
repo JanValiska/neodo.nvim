@@ -189,7 +189,15 @@ local function start_cmd(command, project, project_type)
 
     command_contexts[uuid_generator()] = command_context
 
-    if should_notify(command) then notify.info('Starting', command.name) end
+    if should_notify(command) then
+        local cmdstring = nil
+        if type(cmd) == "table" then 
+            cmdstring = table.concat(cmd, " ")
+        else
+            cmdstring = cmd
+        end
+        notify.info('Running: ' .. cmdstring .. '\nin: ' .. cwd, "Command: "..command.name)
+    end
 end
 
 local function command_still_running(command)

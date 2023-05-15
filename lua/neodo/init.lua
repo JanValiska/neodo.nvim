@@ -274,6 +274,7 @@ local function register_built_in_project_types()
     require('neodo.project_type.cmake').register()
     require('neodo.project_type.php_composer').register()
     require('neodo.project_type.makefile').register()
+    require('neodo.project_type.rust').register()
 end
 
 local function register_telescope_extension()
