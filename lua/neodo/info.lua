@@ -30,6 +30,7 @@ local function make_popup()
         buf_options = {
             modifiable = true,
             readonly = false,
+            filetype = "neodo-info"
         },
         win_options = {
             winhighlight = 'FloatBorder:FloatBorder,FloatBorder:FloatBorder',
