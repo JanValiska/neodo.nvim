@@ -245,12 +245,6 @@ function M.edit_project_settings()
 end
 
 function M.info()
-    for k,v in pairs(projects) do
-                log.debug(vim.inspect(v.data_path))
-        for pk,pv in pairs(v.project_types.cmake.config.profiles) do
-                log.debug(vim.inspect(pk))
-        end
-    end
     require('neodo.info').show(projects)
 end
 
