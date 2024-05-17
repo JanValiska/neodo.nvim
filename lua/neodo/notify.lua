@@ -6,19 +6,19 @@ local function notify_impl(text, title, category)
     else
         title = "Neodo"
     end
-    vim.notify(text, category, { title = title })
+    return vim.notify(text, category, { title = title })
 end
 
 function M.info(text, header)
-    notify_impl(text, header, vim.log.levels.INFO)
+    return notify_impl(text, header, vim.log.levels.INFO)
 end
 
 function M.warning(text, header)
-    notify_impl(text, header, vim.log.levels.WARN)
+    return notify_impl(text, header, vim.log.levels.WARN)
 end
 
 function M.error(text, header)
-    notify_impl(text, header, vim.log.levels.ERROR)
+    return notify_impl(text, header, vim.log.levels.ERROR)
 end
 
 return M

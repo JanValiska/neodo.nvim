@@ -2,11 +2,13 @@ local M = {}
 
 local Path = require('plenary.path')
 local notify = require('neodo.notify')
+local log = require('neodo.log')
 local cmake_config_file_name = 'neodo_cmake_config.json'
 local functions = require('neodo.project_type.cmake.functions')
 local Profile = require('neodo.project_type.cmake.profile')
 
 function M.load(project, cmake_project)
+    log.debug("CMake load config called")
     if not project:get_data_path() then return end
 
     if not cmake_project then

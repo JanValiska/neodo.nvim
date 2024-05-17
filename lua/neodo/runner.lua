@@ -17,8 +17,7 @@ local function find_command_by_job_id(job_id)
 end
 
 local function should_notify(command)
-    if command.notify ~= nil then return command.notify end
-    return true
+    return command.notify ~= nil and command.notify
 end
 
 local function close_terminal_on_success(command, job)
@@ -29,6 +28,7 @@ local function close_terminal_on_success(command, job)
         and not command.keep_terminal_open
     then
         pcall(vim.api.nvim_buf_delete, job.buf_id, {})
+        job.buf_id = nil
     end
 end
 
@@ -40,6 +40,7 @@ local function close_terminal_on_fail(command, job)
         and global_settings.terminal_close_on_error
     then
         pcall(vim.api.nvim_buf_delete, job.buf_id, {})
+        job.buf_id = nil
     end
 end
 
@@ -61,6 +62,8 @@ local function on_event(job_id, data, event)
 
     if event == 'exit' then
         local command = command_context.command
+        command_context.running = false
+        command_context.result = data
 
         if data == 0 then
             if should_notify(command) then notify.info('SUCCESS', command.name) end
@@ -92,7 +95,7 @@ local function on_event(job_id, data, event)
             --vim.cmd('wincmd p')
         end
 
-        command_contexts[uuid] = nil
+        --command_contexts[uuid] = nil
     end
 end
 
@@ -110,6 +113,8 @@ local function start_function_command(command, project, project_type)
         command = command,
         project = project,
         project_type = project_type,
+        running = true,
+        uuid = fuuid
     }
     vim.schedule(function()
         command.fn(ctx)
@@ -118,7 +123,7 @@ local function start_function_command(command, project, project_type)
             ctx.params = nil
             command.on_success(ctx)
         end
-        command_contexts[fuuid] = nil
+        command_contexts[fuuid].running = false
     end)
 end
 
@@ -169,6 +174,8 @@ local function start_cmd(command, project, project_type)
         project = project,
         project_type = project_type,
         output_lines = {},
+        running = true,
+        uuid = uuid_generator()
     }
 
     log.debug('Starting', vim.inspect(cmd), 'with cwd', cwd, 'with options', vim.inspect(opts))
@@ -180,29 +187,32 @@ local function start_cmd(command, project, project_type)
             vim.api.nvim_command('enew')
             command_context.job_id = vim.fn.termopen(cmd, opts)
             command_context.buf_id = vim.fn.bufnr()
+            vim.api.nvim_set_option_value('number', false, { scope = 'local' })
+            vim.api.nvim_set_option_value('relativenumber', false, { scope = 'local' })
+            vim.api.nvim_set_option_value('signcolumn', 'no', { scope = 'local' })
+            vim.api.nvim_set_option_value('buflisted', false, { scope = 'local' })
             utils.set_buf_variable(command_context.buf_id, 'neodo_project_hash', project:get_hash())
             vim.schedule(function() vim.api.nvim_command('starti') end)
         end
     end
 
     executor()
-
-    command_contexts[uuid_generator()] = command_context
+    command_contexts[command_context.uuid] = command_context
 
     if should_notify(command) then
         local cmdstring = nil
-        if type(cmd) == "table" then 
-            cmdstring = table.concat(cmd, " ")
+        if type(cmd) == 'table' then
+            cmdstring = table.concat(cmd, ' ')
         else
             cmdstring = cmd
         end
-        notify.info('Running: ' .. cmdstring .. '\nin: ' .. cwd, "Command: "..command.name)
+        notify.info('Running: ' .. cmdstring .. '\nin: ' .. cwd, 'Command: ' .. command.name)
     end
 end
 
 local function command_still_running(command)
     for _, running_command in pairs(command_contexts) do
-        if running_command.command == command then return true end
+        if running_command.command == command and running_command.running then return true end
     end
     return false
 end
@@ -228,6 +238,14 @@ function M.run_project_command(command, project, project_type)
 end
 
 function M.get_jobs_count() return vim.tbl_count(command_contexts) end
+
+function M.get_running_jobs_count()
+    local count = 0
+    for _, job in ipairs(command_contexts) do
+        if job.running then count = count + 1 end
+    end
+    return count
+end
 
 function M.get_jobs() return command_contexts end
 

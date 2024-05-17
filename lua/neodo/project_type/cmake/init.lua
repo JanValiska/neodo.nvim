@@ -14,6 +14,7 @@ M.register = function()
         patterns = { 'CMakeLists.txt' },
         on_attach = {
             function(ctx)
+                log.debug("CMake on_attach called")
                 local function load_config() config.load(ctx.project, ctx.project_type) end
                 local function any_of_exists(path, patterns)
                     log.debug('Searching', vim.inspect(patterns), 'in', vim.inspect(path))

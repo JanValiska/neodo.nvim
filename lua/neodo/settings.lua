@@ -9,12 +9,21 @@ local M = {
     commands = {
         show_neodo_info = {
             name = 'Show neodo info',
+            notify = false,
             fn = function()
                 require('neodo').info()
             end,
         },
+        show_jobs = {
+            name = 'Show jobs',
+            notify = false,
+            fn = function()
+                require('neodo').jobs()
+            end,
+        },
         edit_project_settings = {
             name = 'Edit project settings',
+            notify = false,
             fn = function()
                 require('neodo').edit_project_settings()
             end,

@@ -1,5 +1,6 @@
 local uuid = require('neodo.uuid')
 local utils = require('neodo.utils')
+local notify = require('neodo.notify')
 local CodeModel = require('neodo.project_type.cmake.code_model')
 local Path = require('plenary.path')
 
@@ -60,8 +61,19 @@ function Profile:load_from_table(table)
     create_code_model(self)
     self.key = table.key
     self.build_type = table.build_type
+    self.cmake_settings = table.cmake_settings
+
     self.build_configuration_key = table.build_configuration_key
     self.build_configuration = self.cmake_project.build_configurations[self.build_configuration_key]
+    if self.build_configuration_key and not self.build_configuration then
+        notify.error(
+            "No build configuration with key: '"
+                .. self.build_configuration_key
+                .. "' found for profile: '"
+                .. table.name
+                .. "'"
+        )
+    end
     self.name = table.name
     self.conan_profile = table.conan_profile
     self.selected_target = table.selected_target
@@ -147,8 +159,9 @@ function Profile:get_configure_command()
     end
 
     if self.cmake_project.has_conan and self.cmake_project.conan_version == 2 then
-        local toolchainPath = Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
-        table.insert(cmd, "-DCMAKE_TOOLCHAIN_FILE="..toolchainPath:absolute())
+        local toolchainPath =
+            Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
+        table.insert(cmd, '-DCMAKE_TOOLCHAIN_FILE=' .. toolchainPath:absolute())
     end
 
     return cmd
@@ -203,7 +216,7 @@ end
 function Profile:get_conan_profile()
     if self.conan_profile then
         return self.conan_profile
-    elseif self.build_configuration.conan_profile then
+    elseif self.build_configuration and self.build_configuration.conan_profile then
         return self.build_configuration.conan_profile
     end
     return nil
@@ -220,7 +233,8 @@ end
 
 function Profile:conan_installed()
     local lockPath = Path.new(self.build_directory.filename, 'conan.lock')
-    local toolchainPath = Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
+    local toolchainPath =
+        Path.new(self.build_directory.filename, 'conan_libs', 'conan_toolchain.cmake')
     local hasNotConan = not self.cmake_project.has_conan
     return hasNotConan or lockPath:exists() or toolchainPath:exists()
 end
@@ -244,8 +258,21 @@ function Profile:get_info_node()
         return NuiTree.Node({ text = 'Targets:' }, targetNodes)
     end
     local function get_build_configuration_info()
+        if
+            not self.build_configuration_key
+            or not type(self.build_configuration_key) == 'string'
+        then
+            return Node({ text = 'Build configuration: ' .. 'UNSET' }, {})
+        end
+
         local bc = self.build_configuration
-        local bc_name = ((bc and bc.name) or 'MISSING')
+        if not bc then
+            return Node(
+                { text = 'Build configuration: ' .. self.build_configuration_key .. ' MISSING' },
+                {}
+            )
+        end
+        local bc_name = ((bc and bc.name) or 'UNNAMED')
         local bc_nodes = {}
 
         if

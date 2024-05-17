@@ -1,7 +1,8 @@
 local M = {}
 
 local configuration = require('neodo.configuration')
-local global_settings = require('neodo.settings')
+local global_default_settings = require('neodo.settings')
+local global_settings = {}
 local root = require('neodo.root')
 local notify = require('neodo.notify')
 
@@ -14,6 +15,9 @@ local projects = require('neodo.projects')
 local Project = require('neodo.project')
 
 local Path = require('plenary.path')
+
+local neodo_basic_autocommands_group =
+    vim.api.nvim_create_augroup('NeodoBasicAutocommands', { clear = true })
 
 local function set_project_hash(hash, bufnr)
     bufnr = bufnr or vim.api.nvim_win_get_buf(0)
@@ -28,7 +32,7 @@ local function get_project_hash(bufnr)
 end
 
 local function change_root(dir)
-    if global_settings.change_root then
+    if global_settings.change_root and vim.cmd("pwd") ~= dir then
         log.info('Changing root to:', dir)
         vim.api.nvim_set_current_dir(dir)
         if global_settings.change_root_notify then notify.info(dir, 'Working directory changed') end
@@ -40,7 +44,7 @@ local function load_project(project_root, project_types)
     local project = Project:new(global_settings, project_root, project_types)
     project:call_on_attach()
     projects[project:get_hash()] = project
-    log.debug('Loaded project:', vim.inspect(project))
+    log.debug('Loaded project for:', project_root)
     return project
 end
 
@@ -244,9 +248,9 @@ function M.edit_project_settings()
     end
 end
 
-function M.info()
-    require('neodo.info').show(projects)
-end
+function M.info() require('neodo.info').show(projects) end
+
+function M.jobs() require('neodo.list_jobs').show() end
 
 local function handle_vim_command(command_key)
     if command_key == nil or command_key == '' then
@@ -277,10 +281,24 @@ local function register_telescope_extension()
     telescope.load_extension('neodo')
 end
 
-function M.setup(config, neodo_host_config)
-    local neodo_basic_autocommands_group =
-        vim.api.nvim_create_augroup('NeodoBasicAutocommands', { clear = true })
+local function edit_host_config(path) vim.cmd('e ' .. path) end
 
+local function host_config_file_written(neodo_host_config, user_config)
+    log.debug('Loading default settings...')
+    global_settings = nil
+    global_settings = utils.tbl_deep_extend('force', global_default_settings, user_config)
+
+    log.debug('Reloading host config: ' .. neodo_host_config)
+    local host_config_f, err = loadfile(neodo_host_config)
+    if not err and host_config_f then
+        global_settings = vim.tbl_deep_extend('force', global_settings, host_config_f() or {})
+    end
+    for _, project in pairs(projects) do
+        reload_project(project)
+    end
+end
+
+function M.setup(config, neodo_host_config)
     vim.api.nvim_create_autocmd({ 'BufEnter' }, {
         group = neodo_basic_autocommands_group,
         pattern = '*',
@@ -313,7 +331,27 @@ function M.setup(config, neodo_host_config)
     register_built_in_project_types()
     register_telescope_extension()
 
-    if config then global_settings = utils.tbl_deep_extend('force', global_settings, config) end
+    if config then
+        global_settings = utils.tbl_deep_extend('force', global_default_settings, config)
+    end
+
+    if neodo_host_config and type(neodo_host_config) == 'string' then
+        vim.api.nvim_create_user_command(
+            'NeodoEditHostConfig',
+            function() edit_host_config(neodo_host_config) end,
+            {}
+        )
+        global_settings.commands.edit_host_config = {
+            name = 'Edit host config',
+            notify = false,
+            fn = function() edit_host_config(neodo_host_config) end,
+        }
+        vim.api.nvim_create_autocmd('BufWrite', {
+            group = neodo_basic_autocommands_group,
+            pattern = { neodo_host_config },
+            callback = function() host_config_file_written(neodo_host_config, config) end,
+        })
+    end
 
     if neodo_host_config then
         local host_config_f, err = loadfile(neodo_host_config)
