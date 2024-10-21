@@ -21,7 +21,7 @@ local function get_build_args(props)
     if
         not props.build_configuration
         or not props.build_configuration.build_args
-        or not vim.tbl_islist(props.build_configuration.build_args)
+        or not vim.islist(props.build_configuration.build_args)
     then
         return {}
     end
@@ -277,7 +277,7 @@ function Profile:get_info_node()
 
         if
             type(bc.cmake_options) == 'table'
-            and vim.tbl_islist(bc.cmake_options)
+            and vim.islist(bc.cmake_options)
             and vim.tbl_count(bc.cmake_options) ~= 0
         then
             local opts_nodes = {}
@@ -289,7 +289,7 @@ function Profile:get_info_node()
 
         if
             type(bc.build_args) == 'table'
-            and vim.tbl_islist(bc.build_args)
+            and vim.islist(bc.build_args)
             and vim.tbl_count(bc.build_args) ~= 0
         then
             local opts_nodes = {}

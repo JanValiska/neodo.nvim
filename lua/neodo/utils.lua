@@ -138,9 +138,9 @@ local function tbl_extend(behavior, deep_extend, ...)
         vim.validate({ ['after the second argument'] = { tbl, 't' } })
         if tbl then
             for k, v in pairs(tbl) do
-                if type(v) == 'table' and deep_extend and not vim.tbl_islist(v) then
+                if type(v) == 'table' and deep_extend and not vim.islist(v) then
                     ret[k] = tbl_extend(behavior, true, ret[k] or vim.empty_dict(), v)
-                elseif type(v) == 'table' and vim.tbl_islist(v) and not vim.tbl_isempty(v) then
+                elseif type(v) == 'table' and vim.islist(v) and not vim.tbl_isempty(v) then
                     ret[k] = vim.list_extend(ret[k] or {}, v)
                 elseif behavior ~= 'force' and ret[k] ~= nil then
                     if behavior == 'error' then error('key found in more than one map: ' .. k) end -- Else behavior is "keep".
@@ -158,7 +158,7 @@ function M.tbl_extend(behavior, ...) return tbl_extend(behavior, false, ...) end
 function M.tbl_deep_extend(behavior, ...) return tbl_extend(behavior, true, ...) end
 
 function M.tbl_append(to, from)
-    if type(from) ~= 'table' or not vim.tbl_islist(from) then return to end
+    if type(from) ~= 'table' or not vim.islist(from) then return to end
     for _, v in ipairs(from) do
         table.insert(to, v)
     end

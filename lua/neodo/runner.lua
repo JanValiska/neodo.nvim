@@ -138,7 +138,7 @@ local function get_cmd_string(command, project, project_type)
         return command.cmd(ctx)
     elseif
         type(command.cmd) == 'string'
-        or (type(command.cmd) == 'table' and vim.tbl_islist(command.cmd))
+        or (type(command.cmd) == 'table' and vim.islist(command.cmd))
     then
         return command.cmd
     end

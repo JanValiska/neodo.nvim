@@ -32,7 +32,7 @@ local function get_project_hash(bufnr)
 end
 
 local function change_root(dir)
-    if global_settings.change_root and vim.cmd("pwd") ~= dir then
+    if global_settings.change_root and vim.fn.getcwd() ~= dir then
         log.info('Changing root to:', dir)
         vim.api.nvim_set_current_dir(dir)
         if global_settings.change_root_notify then notify.info(dir, 'Working directory changed') end

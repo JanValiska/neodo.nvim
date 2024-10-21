@@ -54,7 +54,7 @@ end
 
 local function table_copy(datatable)
     local new_datatable = {}
-    if type(datatable) == 'table' and not vim.tbl_islist(datatable) then
+    if type(datatable) == 'table' and not vim.islist(datatable) then
         for k, v in pairs(datatable) do
             new_datatable[k] = table_copy(v)
         end
