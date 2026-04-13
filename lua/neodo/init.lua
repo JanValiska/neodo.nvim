@@ -57,6 +57,8 @@ end
 
 --- Handle a buffer entering
 local function handle_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then return end
+
     local ft = vim.bo[bufnr].filetype
     if ft == '' or ft == 'qf' then return end
 
