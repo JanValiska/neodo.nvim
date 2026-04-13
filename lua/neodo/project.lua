@@ -24,10 +24,14 @@ local function generate_default_config(project_types)
 
     if project_types.cmake then
         vim.list_extend(lines, cmake.default_config_lines(has_conan))
-    elseif has_conan then
-        table.insert(lines, '  commands = {')
-        table.insert(lines, '    conan_install = "conan install . --build=missing",')
-        table.insert(lines, '  },')
+    else
+        vim.list_extend(lines, cmake.commented_config_lines())
+        table.insert(lines, '')
+        if has_conan then
+            table.insert(lines, '  commands = {')
+            table.insert(lines, '    conan_install = "conan install . --build=missing",')
+            table.insert(lines, '  },')
+        end
     end
 
     table.insert(lines, '')
@@ -39,7 +43,7 @@ local function generate_default_config(project_types)
     return table.concat(lines, '\n')
 end
 
---- Create default .neodo.lua if it doesn't exist
+--- Create default .neodo.lua if it doesn't exist (auto-generated for cmake/conan only)
 local function ensure_config(project_root, project_types)
     local config_path = project_root .. '/.neodo.lua'
     if vim.fn.filereadable(config_path) == 1 then return end
@@ -72,17 +76,11 @@ local function build_commands(config, project_root, project_types)
         add(cmake.commands(config, project_root, rebuild))
     end
 
-    if project_types.rust then
-        add(cargo.commands(project_types.rust))
-    end
+    if project_types.rust then add(cargo.commands(project_types.rust)) end
 
-    if project_types.node then
-        add(node.commands(project_types.node))
-    end
+    if project_types.node then add(node.commands(project_types.node)) end
 
-    if project_types.makefile then
-        add(makefile.commands(project_types.makefile))
-    end
+    if project_types.makefile then add(makefile.commands(project_types.makefile)) end
 
     -- User-defined commands from config
     if config.commands then
@@ -105,7 +103,12 @@ local function build_commands(config, project_root, project_types)
     commands.edit_config = {
         name = 'Edit project config',
         fn = function()
-            vim.cmd('edit ' .. project_root .. '/.neodo.lua')
+            local config_path = project_root .. '/.neodo.lua'
+            if vim.fn.filereadable(config_path) ~= 1 then
+                local content = generate_default_config(project_types)
+                vim.fn.writefile(vim.split(content, '\n'), config_path)
+            end
+            vim.cmd('edit ' .. config_path)
         end,
     }
 
@@ -115,6 +118,9 @@ end
 -- Active projects indexed by root path
 local projects = {}
 
+--- Generate default config content for given project types
+function M.generate_config(project_types) return generate_default_config(project_types) end
+
 --- Create/load a project
 function M.load(project_root, project_types)
     ensure_config(project_root, project_types)
@@ -122,9 +128,10 @@ function M.load(project_root, project_types)
     local config_path = project_root .. '/.neodo.lua'
 
     local config = {}
-    if vim.fn.filereadable(config_path) == 1 then
-        config = load_config(config_path) or {}
-    end
+    if vim.fn.filereadable(config_path) == 1 then config = load_config(config_path) or {} end
+
+    -- If config has profiles, treat as cmake project even without CMakeLists.txt in root
+    if config.profiles and not project_types.cmake then project_types.cmake = project_root end
 
     local commands = build_commands(config, project_root, project_types)
 
@@ -139,17 +146,13 @@ function M.load(project_root, project_types)
     projects[project_root] = project
 
     -- Project type on_load hooks
-    if project_types.cmake then
-        cmake.on_load(config, project_root)
-    end
+    if project_types.cmake then cmake.on_load(config, project_root) end
 
     return project
 end
 
 --- Get project by root path
-function M.get(project_root)
-    return projects[project_root]
-end
+function M.get(project_root) return projects[project_root] end
 
 --- Get project for current working directory
 function M.get_current()
@@ -158,9 +161,7 @@ function M.get_current()
 end
 
 --- Get all loaded projects
-function M.get_all()
-    return projects
-end
+function M.get_all() return projects end
 
 --- Reload a project (after config change)
 function M.reload(project_root)
@@ -182,9 +183,7 @@ function M.run(project, command_key)
         return
     end
 
-    if runner.run(command) then
-        project.last_command = command_key
-    end
+    if runner.run(command) then project.last_command = command_key end
 end
 
 --- Run last command

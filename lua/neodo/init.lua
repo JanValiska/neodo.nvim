@@ -32,9 +32,7 @@ local function detect_project_types(start_dir)
                 if not name then break end
                 for type_key, patterns in pairs(project_type_patterns) do
                     for _, pattern in ipairs(patterns) do
-                        if name == pattern then
-                            types[type_key] = dir
-                        end
+                        if name == pattern then types[type_key] = dir end
                     end
                 end
             end
@@ -52,9 +50,7 @@ end
 local function find_project_root(types)
     local root = nil
     for _, path in pairs(types) do
-        if not root or #path < #root then
-            root = path
-        end
+        if not root or #path < #root then root = path end
     end
     return root
 end
@@ -74,9 +70,7 @@ local function handle_buffer(bufnr)
     if processed_bufs[bufnr] then
         local project = project_mod.get(processed_bufs[bufnr])
         if project then
-            if vim.fn.getcwd() ~= project.root then
-                vim.api.nvim_set_current_dir(project.root)
-            end
+            if vim.fn.getcwd() ~= project.root then vim.api.nvim_set_current_dir(project.root) end
             return
         end
     end
@@ -88,9 +82,7 @@ local function handle_buffer(bufnr)
     for root, _ in pairs(project_mod.get_all()) do
         if vim.startswith(dir, root) then
             processed_bufs[bufnr] = root
-            if vim.fn.getcwd() ~= root then
-                vim.api.nvim_set_current_dir(root)
-            end
+            if vim.fn.getcwd() ~= root then vim.api.nvim_set_current_dir(root) end
             return
         end
     end
@@ -102,14 +94,10 @@ local function handle_buffer(bufnr)
 
     -- Load or get existing project
     local project = project_mod.get(root)
-    if not project then
-        project = project_mod.load(root, types)
-    end
+    if not project then project = project_mod.load(root, types) end
 
     processed_bufs[bufnr] = root
-    if vim.fn.getcwd() ~= root then
-        vim.api.nvim_set_current_dir(root)
-    end
+    if vim.fn.getcwd() ~= root then vim.api.nvim_set_current_dir(root) end
 end
 
 --- Try to detect and load project from a directory (without needing a buffer)
@@ -120,9 +108,7 @@ local function detect_project_from_dir(dir)
     local root = find_project_root(types)
     if not root then return end
 
-    if not project_mod.get(root) then
-        project_mod.load(root, types)
-    end
+    if not project_mod.get(root) then project_mod.load(root, types) end
 end
 
 --- Run a command by key on the current project
@@ -150,9 +136,7 @@ function M.statusline()
 
     local parts = {}
     for type_key, _ in pairs(project.types) do
-        if type_key ~= 'git' then
-            table.insert(parts, type_key)
-        end
+        if type_key ~= 'git' then table.insert(parts, type_key) end
     end
     table.sort(parts)
 
@@ -175,7 +159,14 @@ function M.edit_config()
         notify.warning('No project loaded')
         return
     end
-    vim.cmd('edit ' .. project.root .. '/.neodo.lua')
+
+    local config_path = project.root .. '/.neodo.lua'
+    if vim.fn.filereadable(config_path) ~= 1 then
+        local content = project_mod.generate_config(project.types)
+        vim.fn.writefile(vim.split(content, '\n'), config_path)
+    end
+
+    vim.cmd('edit ' .. config_path)
 end
 
 --- Get project for buffer
@@ -222,9 +213,7 @@ function M.setup(opts)
     vim.api.nvim_create_autocmd({ 'DirChanged' }, {
         group = augroup,
         pattern = '*',
-        callback = function()
-            detect_project_from_dir(vim.loop.cwd())
-        end,
+        callback = function() detect_project_from_dir(vim.loop.cwd()) end,
     })
 
     -- Watch for .neodo.lua changes
@@ -264,9 +253,7 @@ function M.setup(opts)
     vim.schedule(function()
         detect_project_from_dir(vim.loop.cwd())
         for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_loaded(bufnr) then
-                handle_buffer(bufnr)
-            end
+            if vim.api.nvim_buf_is_loaded(bufnr) then handle_buffer(bufnr) end
         end
     end)
 end
