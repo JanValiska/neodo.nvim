@@ -236,9 +236,14 @@ local function parse_file_api_targets(build_dir)
                 or ttype == 'MODULE_LIBRARY'
                 or ttype == 'OBJECT_LIBRARY'
             then
+                local artifact = nil
+                if target_data.artifacts and target_data.artifacts[1] then
+                    artifact = target_data.artifacts[1].path
+                end
                 table.insert(targets, {
                     name = target_data.name,
                     type = ttype,
+                    artifact = artifact,
                 })
             end
         end
@@ -331,6 +336,9 @@ function M.default_config_lines(has_conan_project)
     table.insert(lines, '      build_type = "Debug",')
     table.insert(lines, '      cmake_options = {},')
     table.insert(lines, '      build_args = {},')
+    table.insert(lines, '      -- targets = {')
+    table.insert(lines, '      --   my_target = { cwd = "data", args = { "--verbose" } },')
+    table.insert(lines, '      -- },')
     if has_conan_project then
         table.insert(lines, '      conan = {')
         table.insert(lines, '        profile = "default",')
@@ -394,6 +402,43 @@ function M.commands(config, project_root, rebuild_commands_fn)
             cwd = project_root,
             errorformat = M.gcc_errorformat,
         }
+
+        -- Run target command - find executable path via file API
+        local targets = parse_file_api_targets(build_dir)
+        local target_info = nil
+        if targets then
+            for _, t in ipairs(targets) do
+                if t.name == profile.target then
+                    target_info = t
+                    break
+                end
+            end
+        end
+
+        if target_info and target_info.type == 'EXECUTABLE' and target_info.artifact then
+            local target_cfg = (profile.targets and profile.targets[profile.target]) or {}
+            local exe_path = project_root .. '/' .. build_dir .. '/' .. target_info.artifact
+            local run_cwd = target_cfg.cwd
+            if run_cwd then
+                -- Relative to project root
+                if not run_cwd:match('^/') then run_cwd = project_root .. '/' .. run_cwd end
+            else
+                run_cwd = project_root
+            end
+
+            local run_cmd = { exe_path }
+            if target_cfg.args then
+                for _, a in ipairs(target_cfg.args) do
+                    table.insert(run_cmd, a)
+                end
+            end
+
+            cmds.run_target = {
+                name = 'CMake: Run ' .. profile.target,
+                cmd = run_cmd,
+                cwd = run_cwd,
+            }
+        end
     end
 
     cmds.clean = {
