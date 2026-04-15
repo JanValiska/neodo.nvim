@@ -91,11 +91,11 @@ local function build_commands(config, project_root, project_types)
         add(platformio.commands(config, project_root, rebuild))
     end
 
-    if project_types.rust then add(cargo.commands(project_types.rust)) end
+    if project_types.rust then add(cargo.commands(config, project_root)) end
 
-    if project_types.node then add(node.commands(project_types.node)) end
+    if project_types.node then add(node.commands(config, project_root)) end
 
-    if project_types.makefile then add(makefile.commands(project_types.makefile)) end
+    if project_types.makefile then add(makefile.commands(config, project_root)) end
 
     -- User-defined commands from config
     if config.commands then
@@ -145,9 +145,25 @@ function M.load(project_root, project_types)
     local config = {}
     if vim.fn.filereadable(config_path) == 1 then config = load_config(config_path) or {} end
 
-    -- If config has profiles, treat as cmake project even without CMakeLists.txt in root
-    if config.cmake and config.cmake.profiles and not project_types.cmake then
-        project_types.cmake = project_root
+    -- Type keys that map 1:1 to config section names
+    local configurable_types = { 'cmake', 'platformio', 'rust', 'node', 'makefile' }
+
+    -- Sync detected subdirs into config as `src` (so modules can resolve cwd).
+    -- Also force-activate types declared in config even without filesystem detection.
+    for _, type_key in ipairs(configurable_types) do
+        local detected = project_types[type_key]
+        if detected and detected ~= project_root then
+            config[type_key] = config[type_key] or {}
+            if not config[type_key].src then
+                local rel = detected:sub(#project_root + 2)
+                if rel ~= '' then config[type_key].src = rel end
+            end
+        end
+        if not detected and config[type_key] and next(config[type_key]) then
+            local dir = config[type_key].src and (project_root .. '/' .. config[type_key].src)
+                or project_root
+            project_types[type_key] = dir
+        end
     end
 
     local commands = build_commands(config, project_root, project_types)

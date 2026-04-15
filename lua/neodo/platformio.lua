@@ -75,9 +75,16 @@ local function parse_ini_envs(ini_path, seen)
     return envs, default_env
 end
 
+--- Resolve platformio working directory (where platformio.ini lives)
+local function resolve_cwd(project_root, config)
+    local pio = (config and config.platformio) or {}
+    return pio.src and (project_root .. '/' .. pio.src) or project_root
+end
+
 --- Get list of environments and the active one
 local function get_envs(project_root, config)
-    local ini_path = project_root .. '/platformio.ini'
+    local cwd = resolve_cwd(project_root, config)
+    local ini_path = cwd .. '/platformio.ini'
     local envs, default_env = parse_ini_envs(ini_path)
 
     local pio = config.platformio or {}
@@ -112,11 +119,12 @@ local function write_active_env(config_path, new_active)
 end
 
 --- Symlink compile_commands.json from .pio/build/<env> to project root
-local function switch_compile_commands(project_root, env)
+local function switch_compile_commands(project_root, config, env)
     if not env then return end
 
-    local source = project_root .. '/.pio/build/' .. env .. '/compile_commands.json'
-    local target = project_root .. '/compile_commands.json'
+    local cwd = resolve_cwd(project_root, config)
+    local source = cwd .. '/.pio/build/' .. env .. '/compile_commands.json'
+    local target = cwd .. '/compile_commands.json'
 
     if vim.fn.filereadable(source) ~= 1 then return end
 
@@ -128,6 +136,10 @@ end
 function M.default_config_lines()
     local lines = {}
     table.insert(lines, '  platformio = {')
+    table.insert(
+        lines,
+        '    -- src = "firmware",  -- path to platformio.ini if not in project root'
+    )
     table.insert(
         lines,
         '    -- active = "my_env",  -- from platformio.ini, defaults to default_envs or first [env:...]'
@@ -152,6 +164,7 @@ function M.commands(config, project_root, rebuild_commands_fn)
 
     local pio = config.platformio or {}
     local env_cfg = (pio.envs and active and pio.envs[active]) or {}
+    local pio_cwd = resolve_cwd(project_root, config)
 
     local cmds = {}
 
@@ -178,13 +191,13 @@ function M.commands(config, project_root, rebuild_commands_fn)
     cmds.build = {
         name = 'PIO: Build' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'run' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.upload = {
         name = 'PIO: Upload' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'run', '-t', 'upload' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     -- Delayed upload (useful for bootloader activation)
@@ -202,51 +215,51 @@ function M.commands(config, project_root, rebuild_commands_fn)
                     .. ' && pio run -t upload'
                     .. (active and (' -e ' .. active) or ''),
             },
-            cwd = project_root,
+            cwd = pio_cwd,
         }
     end
 
     cmds.clean = {
         name = 'PIO: Clean' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'run', '-t', 'clean' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.monitor = {
         name = 'PIO: Monitor' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'device', 'monitor' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.test = {
         name = 'PIO: Test' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'test' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.upload_fs = {
         name = 'PIO: Upload filesystem' .. (active and (' (' .. active .. ')') or ''),
         cmd = pio_cmd(with_env({ 'run', '-t', 'uploadfs' })),
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.compiledb = {
         name = 'PIO: Generate compile_commands.json',
         cmd = pio_cmd(with_env({ 'run', '-t', 'compiledb' })),
         cwd = project_root,
-        on_success = function() switch_compile_commands(project_root, active) end,
+        on_success = function() switch_compile_commands(project_root, config, active) end,
     }
 
     cmds.device_list = {
         name = 'PIO: Device list',
         cmd = { 'pio', 'device', 'list' },
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     cmds.pkg_update = {
         name = 'PIO: Update packages',
         cmd = { 'pio', 'pkg', 'update' },
-        cwd = project_root,
+        cwd = pio_cwd,
     }
 
     -- Environment selection
@@ -276,7 +289,7 @@ function M.commands(config, project_root, rebuild_commands_fn)
 
                     config.platformio = config.platformio or {}
                     config.platformio.active = selection.env
-                    switch_compile_commands(project_root, selection.env)
+                    switch_compile_commands(project_root, config, selection.env)
                     notify.info('Env switched to: ' .. selection.env)
                     if rebuild_commands_fn then rebuild_commands_fn() end
                 end)
@@ -290,7 +303,7 @@ end
 --- Called when project is loaded
 function M.on_load(config, project_root)
     local _, active = get_envs(project_root, config)
-    if active then switch_compile_commands(project_root, active) end
+    if active then switch_compile_commands(project_root, config, active) end
 end
 
 return M

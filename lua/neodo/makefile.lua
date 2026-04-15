@@ -8,9 +8,7 @@ local function parse_targets(makefile_path)
     local lines = vim.fn.readfile(makefile_path)
     for _, line in ipairs(lines) do
         local target = line:match('^([a-zA-Z0-9_][a-zA-Z0-9_.%-]*)%s*:')
-        if target then
-            targets[target] = true
-        end
+        if target then targets[target] = true end
     end
     targets['.PHONY'] = nil
     targets['.DEFAULT'] = nil
@@ -21,14 +19,16 @@ local function parse_targets(makefile_path)
     return sorted
 end
 
-function M.commands(project_root)
+function M.commands(config, project_root)
+    local make_cfg = (config and config.makefile) or {}
+    local cwd = make_cfg.src and (project_root .. '/' .. make_cfg.src) or project_root
     local cmds = {}
-    local targets = parse_targets(project_root .. '/Makefile')
+    local targets = parse_targets(cwd .. '/Makefile')
     for _, target in ipairs(targets) do
         cmds['make_' .. target] = {
             name = 'Make: ' .. target,
             cmd = { 'make', target },
-            cwd = project_root,
+            cwd = cwd,
         }
     end
     return cmds
