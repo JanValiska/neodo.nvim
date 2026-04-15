@@ -198,16 +198,39 @@ local function ensure_file_api_query(build_dir)
     if vim.fn.filereadable(query_file) ~= 1 then vim.fn.writefile({}, query_file) end
 end
 
---- Detect if the project uses ccache by scanning CMakeCache.txt for launcher settings
-local function uses_ccache(build_dir)
+--- Detect ccache usage and extract CCACHE_DIR from CMakeCache.txt / launcher script
+--- Returns { used = bool, ccache_dir = string|nil }
+local function detect_ccache(build_dir)
+    local result = { used = false, ccache_dir = nil }
     local cache_file = build_dir .. '/CMakeCache.txt'
-    if vim.fn.filereadable(cache_file) ~= 1 then return false end
+    if vim.fn.filereadable(cache_file) ~= 1 then return result end
 
-    local lines = vim.fn.readfile(cache_file)
-    for _, line in ipairs(lines) do
-        if line:match('^CMAKE_[CX]+_COMPILER_LAUNCHER[^=]*=.*ccache') then return true end
+    local launcher = nil
+    for _, line in ipairs(vim.fn.readfile(cache_file)) do
+        local value = line:match('^CMAKE_[CX]+_COMPILER_LAUNCHER[^=]*=(.*)$')
+        if value and value:match('ccache') then
+            result.used = true
+            launcher = value
+            break
+        end
     end
-    return false
+
+    if not result.used then return result end
+
+    -- If launcher points to a script file, extract CCACHE_DIR assignment
+    if launcher and vim.fn.filereadable(launcher) == 1 then
+        for _, line in ipairs(vim.fn.readfile(launcher)) do
+            local dir = line:match('CCACHE_DIR=([^%s]+)')
+            if dir then
+                -- Strip quotes if present
+                dir = dir:gsub('^["\']', ''):gsub('["\']$', '')
+                result.ccache_dir = dir
+                break
+            end
+        end
+    end
+
+    return result
 end
 
 --- Parse targets from cmake file API reply directory
@@ -459,10 +482,17 @@ function M.commands(config, project_root, rebuild_commands_fn)
         cwd = project_root,
     }
 
-    if uses_ccache(build_dir) then
+    local ccache = detect_ccache(build_dir)
+    if ccache.used then
+        local clear_cmd
+        if ccache.ccache_dir then
+            clear_cmd = { 'env', 'CCACHE_DIR=' .. ccache.ccache_dir, 'ccache', '--clear' }
+        else
+            clear_cmd = { 'ccache', '--clear' }
+        end
         cmds.ccache_clear = {
             name = 'CMake: Clear ccache',
-            cmd = { 'ccache', '--clear' },
+            cmd = clear_cmd,
             cwd = project_root,
             notify = true,
         }
