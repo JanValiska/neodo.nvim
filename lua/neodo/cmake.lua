@@ -198,6 +198,18 @@ local function ensure_file_api_query(build_dir)
     if vim.fn.filereadable(query_file) ~= 1 then vim.fn.writefile({}, query_file) end
 end
 
+--- Detect if the project uses ccache by scanning CMakeCache.txt for launcher settings
+local function uses_ccache(build_dir)
+    local cache_file = build_dir .. '/CMakeCache.txt'
+    if vim.fn.filereadable(cache_file) ~= 1 then return false end
+
+    local lines = vim.fn.readfile(cache_file)
+    for _, line in ipairs(lines) do
+        if line:match('^CMAKE_[CX]+_COMPILER_LAUNCHER[^=]*=.*ccache') then return true end
+    end
+    return false
+end
+
 --- Parse targets from cmake file API reply directory
 local function parse_file_api_targets(build_dir)
     local reply_dir = build_dir .. '/.cmake/api/v1/reply'
@@ -446,6 +458,15 @@ function M.commands(config, project_root, rebuild_commands_fn)
         cmd = clean_cmd(profile, project_root),
         cwd = project_root,
     }
+
+    if uses_ccache(build_dir) then
+        cmds.ccache_clear = {
+            name = 'CMake: Clear ccache',
+            cmd = { 'ccache', '--clear' },
+            cwd = project_root,
+            notify = true,
+        }
+    end
 
     if has_conan(project_root, source_dir) then
         cmds.conan_install = {
