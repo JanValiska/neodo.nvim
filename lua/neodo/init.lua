@@ -71,7 +71,9 @@ local function handle_buffer(bufnr)
 
     -- Set window-local cwd to project root
     local function set_lcd(root)
-        if vim.fn.getcwd(0) ~= root then vim.cmd('lcd ' .. vim.fn.fnameescape(root)) end
+        if vim.fn.getcwd(0) ~= root then
+            vim.cmd('silent lcd ' .. vim.fn.fnameescape(root))
+        end
     end
 
     -- Check if buffer already belongs to a loaded project
