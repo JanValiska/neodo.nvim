@@ -6,6 +6,7 @@ local cmake = require('neodo.cmake')
 local cargo = require('neodo.cargo')
 local node = require('neodo.node')
 local makefile = require('neodo.makefile')
+local platformio = require('neodo.platformio')
 
 --- Load and parse .neodo.lua config file
 local function load_config(config_path)
@@ -24,6 +25,8 @@ local function generate_default_config(project_types)
 
     if project_types.cmake then
         vim.list_extend(lines, cmake.default_config_lines(has_conan))
+    elseif project_types.platformio then
+        vim.list_extend(lines, platformio.default_config_lines())
     else
         vim.list_extend(lines, cmake.commented_config_lines())
         table.insert(lines, '')
@@ -48,7 +51,9 @@ local function ensure_config(project_root, project_types)
     local config_path = project_root .. '/.neodo.lua'
     if vim.fn.filereadable(config_path) == 1 then return end
 
-    if not project_types.cmake and not project_types.conan then return end
+    if not project_types.cmake and not project_types.conan and not project_types.platformio then
+        return
+    end
 
     local content = generate_default_config(project_types)
     vim.fn.writefile(vim.split(content, '\n'), config_path)
@@ -74,6 +79,16 @@ local function build_commands(config, project_root, project_types)
             end
         end
         add(cmake.commands(config, project_root, rebuild))
+    end
+
+    if project_types.platformio then
+        local rebuild = function()
+            local project = M.get(project_root)
+            if project then
+                project.commands = build_commands(config, project_root, project_types)
+            end
+        end
+        add(platformio.commands(config, project_root, rebuild))
     end
 
     if project_types.rust then add(cargo.commands(project_types.rust)) end
@@ -147,6 +162,7 @@ function M.load(project_root, project_types)
 
     -- Project type on_load hooks
     if project_types.cmake then cmake.on_load(config, project_root) end
+    if project_types.platformio then platformio.on_load(config, project_root) end
 
     return project
 end

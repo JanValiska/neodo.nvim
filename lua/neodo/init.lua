@@ -14,6 +14,7 @@ local project_type_patterns = {
     git = { '.git' },
     makefile = { 'Makefile' },
     composer = { 'composer.json' },
+    platformio = { 'platformio.ini' },
 }
 
 -- Buffers already processed
@@ -151,6 +152,15 @@ function M.statusline()
         status = status .. ' ' .. project.config.active
     end
 
+    -- Show active platformio env
+    if
+        project.types.platformio
+        and project.config.platformio
+        and project.config.platformio.active
+    then
+        status = status .. ' ' .. project.config.platformio.active
+    end
+
     return status
 end
 
@@ -227,6 +237,30 @@ function M.setup(opts)
             local root = vim.fn.fnamemodify(file, ':h')
             project_mod.reload(root)
             notify.info('Config reloaded', root)
+        end,
+    })
+
+    -- Watch for project type identifier file changes (reload commands)
+    local identifier_patterns = {}
+    for _, patterns in pairs(project_type_patterns) do
+        for _, pattern in ipairs(patterns) do
+            table.insert(identifier_patterns, '*/' .. pattern)
+        end
+    end
+    vim.api.nvim_create_autocmd('BufWritePost', {
+        group = augroup,
+        pattern = identifier_patterns,
+        callback = function()
+            local file = vim.fn.expand('%:p')
+            local dir = vim.fn.fnamemodify(file, ':h')
+            -- Find a loaded project this file belongs to
+            for root, _ in pairs(project_mod.get_all()) do
+                if vim.startswith(dir, root) then
+                    project_mod.reload(root)
+                    notify.info('Commands reloaded', root)
+                    return
+                end
+            end
         end,
     })
 
