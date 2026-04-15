@@ -148,8 +148,8 @@ function M.statusline()
     local status = '[' .. table.concat(parts, '+') .. ']'
 
     -- Show active cmake profile
-    if project.types.cmake and project.config.active then
-        status = status .. ' ' .. project.config.active
+    if project.types.cmake and project.config.cmake and project.config.cmake.active then
+        status = status .. ' ' .. project.config.cmake.active
     end
 
     -- Show active platformio env

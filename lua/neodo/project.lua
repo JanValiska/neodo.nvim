@@ -146,7 +146,9 @@ function M.load(project_root, project_types)
     if vim.fn.filereadable(config_path) == 1 then config = load_config(config_path) or {} end
 
     -- If config has profiles, treat as cmake project even without CMakeLists.txt in root
-    if config.profiles and not project_types.cmake then project_types.cmake = project_root end
+    if config.cmake and config.cmake.profiles and not project_types.cmake then
+        project_types.cmake = project_root
+    end
 
     local commands = build_commands(config, project_root, project_types)
 

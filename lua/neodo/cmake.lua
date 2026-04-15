@@ -175,19 +175,23 @@ local function switch_compile_commands(profile, project_root)
     vim.loop.fs_symlink(source, target)
 end
 
+--- Get cmake sub-config
+local function get_cmake_config(config) return (config and config.cmake) or {} end
+
 --- Get the active profile from config
 local function get_active_profile(config)
-    if not config or not config.profiles then return nil end
-    local key = config.active
+    local cc = get_cmake_config(config)
+    if not cc.profiles then return nil end
+    local key = cc.active
     if not key then
-        local keys = vim.tbl_keys(config.profiles)
+        local keys = vim.tbl_keys(cc.profiles)
         if #keys == 1 then
             key = keys[1]
         else
             return nil
         end
     end
-    return config.profiles[key], key
+    return cc.profiles[key], key
 end
 
 --- Ensure cmake file API query exists so configure generates target metadata
@@ -288,17 +292,19 @@ local function parse_file_api_targets(build_dir)
     return targets
 end
 
---- Write a field value in the active profile section of .neodo.lua
+--- Write a field value in the active profile section of .neodo.lua (within cmake = { profiles = { ... } })
 local function write_profile_field(config_path, profile_key, field, value)
     if vim.fn.filereadable(config_path) ~= 1 then return false end
 
     local lines = vim.fn.readfile(config_path)
+    local in_cmake = false
     local in_profiles = false
     local in_target_profile = false
     local found = false
 
     for i, line in ipairs(lines) do
-        if line:match('^%s*profiles%s*=') then in_profiles = true end
+        if line:match('^%s*cmake%s*=') then in_cmake = true end
+        if in_cmake and line:match('^%s*profiles%s*=') then in_profiles = true end
         if in_profiles and line:match('^%s*' .. profile_key .. '%s*=') then
             in_target_profile = true
         end
@@ -314,7 +320,6 @@ local function write_profile_field(config_path, profile_key, field, value)
         end
         -- Insert field after build_dir line if not found before profile closes
         if in_target_profile and line:match('^%s*build_dir%s*=') and not found then
-            -- Check if field exists further in this profile
             local has_field = false
             for j = i + 1, #lines do
                 if lines[j]:match('^%s*' .. field .. '%s*=') then
@@ -338,14 +343,16 @@ local function write_profile_field(config_path, profile_key, field, value)
     return true
 end
 
---- Rewrite the active field in .neodo.lua config file
+--- Rewrite the cmake.active field in .neodo.lua config file
 local function write_active_profile(config_path, new_active)
     if vim.fn.filereadable(config_path) ~= 1 then return false end
 
     local lines = vim.fn.readfile(config_path)
+    local in_cmake = false
     local found = false
     for i, line in ipairs(lines) do
-        if line:match('^%s*active%s*=') then
+        if line:match('^%s*cmake%s*=') then in_cmake = true end
+        if in_cmake and line:match('^%s*active%s*=') then
             local indent = line:match('^(%s*)')
             lines[i] = indent .. 'active = "' .. new_active .. '",'
             found = true
@@ -362,25 +369,27 @@ end
 --- Generate default config lines for cmake project
 function M.default_config_lines(has_conan_project)
     local lines = {}
-    table.insert(lines, '  -- src = "src",  -- path to CMakeLists.txt if not in project root')
-    table.insert(lines, '  active = "default",')
+    table.insert(lines, '  cmake = {')
+    table.insert(lines, '    -- src = "src",  -- path to CMakeLists.txt if not in project root')
+    table.insert(lines, '    active = "default",')
     table.insert(lines, '')
-    table.insert(lines, '  profiles = {')
-    table.insert(lines, '    default = {')
-    table.insert(lines, '      build_dir = "build",')
-    table.insert(lines, '      build_type = "Debug",')
-    table.insert(lines, '      cmake_options = {},')
-    table.insert(lines, '      build_args = {},')
-    table.insert(lines, '      -- targets = {')
-    table.insert(lines, '      --   my_target = { cwd = "data", args = { "--verbose" } },')
-    table.insert(lines, '      -- },')
+    table.insert(lines, '    profiles = {')
+    table.insert(lines, '      default = {')
+    table.insert(lines, '        build_dir = "build",')
+    table.insert(lines, '        build_type = "Debug",')
+    table.insert(lines, '        cmake_options = {},')
+    table.insert(lines, '        build_args = {},')
+    table.insert(lines, '        -- targets = {')
+    table.insert(lines, '        --   my_target = { cwd = "data", args = { "--verbose" } },')
+    table.insert(lines, '        -- },')
     if has_conan_project then
-        table.insert(lines, '      conan = {')
-        table.insert(lines, '        profile = "default",')
-        table.insert(lines, '        -- remote = "my-remote",')
-        table.insert(lines, '        -- options = { "--build=missing" },')
-        table.insert(lines, '      },')
+        table.insert(lines, '        conan = {')
+        table.insert(lines, '          profile = "default",')
+        table.insert(lines, '          -- remote = "my-remote",')
+        table.insert(lines, '          -- options = { "--build=missing" },')
+        table.insert(lines, '        },')
     end
+    table.insert(lines, '      },')
     table.insert(lines, '    },')
     table.insert(lines, '  },')
     return lines
@@ -390,14 +399,16 @@ end
 function M.commented_config_lines()
     local lines = {}
     table.insert(lines, '  -- CMake project (uncomment to enable):')
-    table.insert(lines, '  -- src = "src",  -- path to CMakeLists.txt if not in project root')
-    table.insert(lines, '  -- active = "default",')
-    table.insert(lines, '  -- profiles = {')
-    table.insert(lines, '  --   default = {')
-    table.insert(lines, '  --     build_dir = "build",')
-    table.insert(lines, '  --     build_type = "Debug",')
-    table.insert(lines, '  --     cmake_options = {},')
-    table.insert(lines, '  --     build_args = {},')
+    table.insert(lines, '  -- cmake = {')
+    table.insert(lines, '  --   src = "src",  -- path to CMakeLists.txt if not in project root')
+    table.insert(lines, '  --   active = "default",')
+    table.insert(lines, '  --   profiles = {')
+    table.insert(lines, '  --     default = {')
+    table.insert(lines, '  --       build_dir = "build",')
+    table.insert(lines, '  --       build_type = "Debug",')
+    table.insert(lines, '  --       cmake_options = {},')
+    table.insert(lines, '  --       build_args = {},')
+    table.insert(lines, '  --     },')
     table.insert(lines, '  --   },')
     table.insert(lines, '  -- },')
     return lines
@@ -406,10 +417,11 @@ end
 --- Generate cmake commands from config and return them
 --- Also returns on_load callback and select_profile command
 function M.commands(config, project_root, rebuild_commands_fn)
-    local profile = get_active_profile(config)
+    local profile, active_profile_key = get_active_profile(config)
     if not profile then return {} end
 
-    local source_dir = config.src
+    local cc = get_cmake_config(config)
+    local source_dir = cc.src
 
     local cmds = {}
 
@@ -508,15 +520,15 @@ function M.commands(config, project_root, rebuild_commands_fn)
     end
 
     -- Profile selection command
-    if config.profiles and vim.tbl_count(config.profiles) > 1 then
-        local active_key = config.active or '?'
+    if cc.profiles and vim.tbl_count(cc.profiles) > 1 then
+        local active_key = cc.active or '?'
         cmds.select_profile = {
             name = 'Select profile (' .. active_key .. ')',
             fn = function()
                 local items = {}
-                for key, p in pairs(config.profiles) do
+                for key, p in pairs(cc.profiles) do
                     local label = key
-                    if key == config.active then label = key .. ' (active)' end
+                    if key == cc.active then label = key .. ' (active)' end
                     table.insert(items, { key = key, label = label, profile = p })
                 end
                 table.sort(items, function(a, b) return a.key < b.key end)
@@ -525,7 +537,8 @@ function M.commands(config, project_root, rebuild_commands_fn)
                     format_item = function(item) return item.label end,
                 }, function(selection)
                     if not selection then return end
-                    config.active = selection.key
+                    config.cmake = config.cmake or {}
+                    config.cmake.active = selection.key
                     local config_path = project_root .. '/.neodo.lua'
                     write_active_profile(config_path, selection.key)
                     switch_compile_commands(selection.profile, project_root)
@@ -570,7 +583,8 @@ function M.commands(config, project_root, rebuild_commands_fn)
                 if not selection then return end
                 profile.target = selection.target
                 local config_path = project_root .. '/.neodo.lua'
-                local active_key = config.active or vim.tbl_keys(config.profiles)[1]
+                local active_key = active_profile_key
+                    or (cc.profiles and vim.tbl_keys(cc.profiles)[1])
                 write_profile_field(config_path, active_key, 'target', selection.target)
                 notify.info('Target set to: ' .. selection.target)
                 if rebuild_commands_fn then rebuild_commands_fn() end
