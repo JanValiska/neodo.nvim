@@ -69,11 +69,16 @@ local function handle_buffer(bufnr)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
     if bufname == '' then return end
 
+    -- Set window-local cwd to project root
+    local function set_lcd(root)
+        if vim.fn.getcwd(0) ~= root then vim.cmd('lcd ' .. vim.fn.fnameescape(root)) end
+    end
+
     -- Check if buffer already belongs to a loaded project
     if processed_bufs[bufnr] then
         local project = project_mod.get(processed_bufs[bufnr])
         if project then
-            if vim.fn.getcwd() ~= project.root then vim.api.nvim_set_current_dir(project.root) end
+            set_lcd(project.root)
             return
         end
     end
@@ -85,7 +90,7 @@ local function handle_buffer(bufnr)
     for root, _ in pairs(project_mod.get_all()) do
         if vim.startswith(dir, root) then
             processed_bufs[bufnr] = root
-            if vim.fn.getcwd() ~= root then vim.api.nvim_set_current_dir(root) end
+            set_lcd(root)
             return
         end
     end
@@ -100,7 +105,7 @@ local function handle_buffer(bufnr)
     if not project then project = project_mod.load(root, types) end
 
     processed_bufs[bufnr] = root
-    if vim.fn.getcwd() ~= root then vim.api.nvim_set_current_dir(root) end
+    set_lcd(root)
 end
 
 --- Try to detect and load project from a directory (without needing a buffer)
