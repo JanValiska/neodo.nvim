@@ -110,10 +110,10 @@ function M.run(command)
         vim.api.nvim_set_option_value('relativenumber', false, { scope = 'local' })
         vim.api.nvim_set_option_value('signcolumn', 'no', { scope = 'local' })
         vim.api.nvim_set_option_value('buflisted', false, { scope = 'local' })
-        vim.schedule(function()
-            local keys = vim.api.nvim_replace_termcodes('G', true, false, true)
-            vim.api.nvim_feedkeys(keys, 'm', false)
-        end)
+        -- vim.schedule(function()
+        --     local keys = vim.api.nvim_replace_termcodes('G', true, false, true)
+        --     vim.api.nvim_feedkeys(keys, 'm', false)
+        -- end)
     end
 
     jobs[job.id] = job
