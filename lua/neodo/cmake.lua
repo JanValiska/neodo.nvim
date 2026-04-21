@@ -79,7 +79,10 @@ local function configure_cmd(profile, project_root, source_dir)
     if profile.conan and has_conan(project_root, source_dir) then
         local ver = detect_conan_version()
         if ver and ver >= 2 then
-            local toolchain = build_dir .. '/conan_libs/conan_toolchain.cmake'
+            local conan_libs = build_dir .. '/conan_libs'
+            -- cmake_layout puts generators under build/<BuildType>/generators/
+            local found = vim.fn.glob(conan_libs .. '/build/*/generators/conan_toolchain.cmake', false, true)
+            local toolchain = #found > 0 and found[1] or (conan_libs .. '/conan_toolchain.cmake')
             table.insert(cmd, '-DCMAKE_TOOLCHAIN_FILE=' .. toolchain)
         end
     end
