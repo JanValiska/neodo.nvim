@@ -54,6 +54,11 @@ end
 
 --- Generate ESPHome commands
 function M.commands(config, project_root, rebuild_commands_fn)
+    if vim.fn.executable('esphome') ~= 1 then
+        notify.warning('Install esphome to enable esphome commands')
+        return {}
+    end
+
     local esphome_cfg = (config and config.esphome) or {}
     local cwd = esphome_cfg.src and (project_root .. '/' .. esphome_cfg.src) or project_root
 
