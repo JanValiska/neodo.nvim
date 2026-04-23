@@ -7,6 +7,7 @@ local cargo = require('neodo.cargo')
 local node = require('neodo.node')
 local makefile = require('neodo.makefile')
 local platformio = require('neodo.platformio')
+local esphome = require('neodo.esphome')
 
 --- Load and parse .neodo.lua config file
 local function load_config(config_path)
@@ -27,6 +28,8 @@ local function generate_default_config(project_types)
         vim.list_extend(lines, cmake.default_config_lines(has_conan))
     elseif project_types.platformio then
         vim.list_extend(lines, platformio.default_config_lines())
+    elseif project_types.esphome then
+        vim.list_extend(lines, esphome.default_config_lines())
     else
         vim.list_extend(lines, cmake.commented_config_lines())
         table.insert(lines, '')
@@ -51,7 +54,12 @@ local function ensure_config(project_root, project_types)
     local config_path = project_root .. '/.neodo.lua'
     if vim.fn.filereadable(config_path) == 1 then return end
 
-    if not project_types.cmake and not project_types.conan and not project_types.platformio then
+    if
+        not project_types.cmake
+        and not project_types.conan
+        and not project_types.platformio
+        and not project_types.esphome
+    then
         return
     end
 
@@ -89,6 +97,16 @@ local function build_commands(config, project_root, project_types)
             end
         end
         add(platformio.commands(config, project_root, rebuild))
+    end
+
+    if project_types.esphome then
+        local rebuild = function()
+            local project = M.get(project_root)
+            if project then
+                project.commands = build_commands(config, project_root, project_types)
+            end
+        end
+        add(esphome.commands(config, project_root, rebuild))
     end
 
     if project_types.rust then add(cargo.commands(config, project_root)) end
@@ -146,7 +164,7 @@ function M.load(project_root, project_types)
     if vim.fn.filereadable(config_path) == 1 then config = load_config(config_path) or {} end
 
     -- Type keys that map 1:1 to config section names
-    local configurable_types = { 'cmake', 'platformio', 'rust', 'node', 'makefile' }
+    local configurable_types = { 'cmake', 'platformio', 'esphome', 'rust', 'node', 'makefile' }
 
     -- Sync detected subdirs into config as `src` (so modules can resolve cwd).
     -- Also force-activate types declared in config even without filesystem detection.

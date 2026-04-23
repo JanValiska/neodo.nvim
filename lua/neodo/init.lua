@@ -15,6 +15,7 @@ local project_type_patterns = {
     makefile = { 'Makefile' },
     composer = { 'composer.json' },
     platformio = { 'platformio.ini' },
+    esphome = { '.esphome' },
 }
 
 -- Buffers already processed
