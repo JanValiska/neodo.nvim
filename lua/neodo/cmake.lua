@@ -139,9 +139,13 @@ local function parse_makefile_targets(build_dir)
     return targets
 end
 
---- Try ninja first, fall back to makefile
+--- Try ninja first, fall back to makefile; returns { targets, generator } or nil
 local function parse_build_targets(build_dir)
-    return parse_ninja_targets(build_dir) or parse_makefile_targets(build_dir)
+    local ninja = parse_ninja_targets(build_dir)
+    if ninja then return { targets = ninja, generator = 'Ninja' } end
+    local make = parse_makefile_targets(build_dir)
+    if make then return { targets = make, generator = 'Makefile' } end
+    return nil
 end
 
 --- Symlink compile_commands.json from build dir to project root
@@ -505,13 +509,13 @@ function M.commands(config, project_root, rebuild_commands_fn)
     end
 
     -- Add commands for parsed build system targets (after configure)
-    local parsed_targets = parse_build_targets(build_dir)
-    if parsed_targets then
-        for _, target in ipairs(parsed_targets) do
+    local parsed = parse_build_targets(build_dir)
+    if parsed then
+        for _, target in ipairs(parsed.targets) do
             if target ~= profile.target then
                 local key = 'cmake_target_' .. target:gsub('[^%w]', '_')
                 cmds[key] = {
-                    name = 'CMake: ' .. target,
+                    name = 'CMake (' .. parsed.generator .. '): ' .. target,
                     cmd = build_cmd(profile, nil, target),
                     cwd = project_root,
                     errorformat = M.gcc_errorformat,
