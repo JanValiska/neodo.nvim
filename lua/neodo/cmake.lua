@@ -512,7 +512,7 @@ function M.commands(config, project_root, rebuild_commands_fn)
                 local key = 'cmake_target_' .. target:gsub('[^%w]', '_')
                 cmds[key] = {
                     name = 'CMake: ' .. target,
-                    cmd = { 'cmake', '--build', build_dir, '--target', target },
+                    cmd = build_cmd(profile, nil, target),
                     cwd = project_root,
                     errorformat = M.gcc_errorformat,
                 }
