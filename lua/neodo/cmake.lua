@@ -1,35 +1,7 @@
 local M = {}
 
 local notify = require('neodo.notify')
-
--- Detect conan version once and cache
-local conan_version = nil
-
-local function detect_conan_version()
-    if conan_version then return conan_version end
-    local ok, lines = pcall(function()
-        local output = vim.fn.system('conan --version')
-        return vim.split(output, '\n')
-    end)
-    if not ok or not lines[1] then return nil end
-    local ver = lines[1]:match('(%d+)%.')
-    conan_version = ver and tonumber(ver) or nil
-    return conan_version
-end
-
-local function has_conan(project_root, source_dir)
-    local dirs = { project_root }
-    if source_dir then table.insert(dirs, project_root .. '/' .. source_dir) end
-    for _, dir in ipairs(dirs) do
-        if
-            vim.fn.filereadable(dir .. '/conanfile.txt') == 1
-            or vim.fn.filereadable(dir .. '/conanfile.py') == 1
-        then
-            return true
-        end
-    end
-    return false
-end
+local conan_mod = require('neodo.conan')
 
 --- Return build_dir as-is (relative paths resolve against cwd which is project root)
 local function resolve_build_dir(profile) return profile.build_dir end
@@ -50,7 +22,7 @@ M.gcc_errorformat = '%-G%f:%s:,'
     .. '%f:%l: %m'
 
 --- Build cmake configure command from profile settings
-local function configure_cmd(profile, project_root, source_dir)
+local function configure_cmd(profile, effective_conan, source_dir)
     local build_dir = resolve_build_dir(profile)
 
     local cmd = { 'cmake', '-B', build_dir }
@@ -76,12 +48,13 @@ local function configure_cmd(profile, project_root, source_dir)
     end
 
     -- Conan v2 toolchain file
-    if profile.conan and has_conan(project_root, source_dir) then
-        local ver = detect_conan_version()
+    if next(effective_conan) ~= nil then
+        local ver = conan_mod.detect_version()
         if ver and ver >= 2 then
             local conan_libs = build_dir .. '/conan_libs'
             -- cmake_layout puts generators under build/<BuildType>/generators/
-            local found = vim.fn.glob(conan_libs .. '/build/*/generators/conan_toolchain.cmake', false, true)
+            local found =
+                vim.fn.glob(conan_libs .. '/build/*/generators/conan_toolchain.cmake', false, true)
             local toolchain = #found > 0 and found[1] or (conan_libs .. '/conan_toolchain.cmake')
             table.insert(cmd, '-DCMAKE_TOOLCHAIN_FILE=' .. toolchain)
         end
@@ -91,7 +64,7 @@ local function configure_cmd(profile, project_root, source_dir)
 end
 
 --- Build cmake build command from profile settings
-local function build_cmd(profile, project_root, target)
+local function build_cmd(profile, _, target)
     local build_dir = resolve_build_dir(profile)
 
     local cmd = { 'cmake', '--build', build_dir }
@@ -112,57 +85,63 @@ local function build_cmd(profile, project_root, target)
 end
 
 --- Build cmake clean command from profile settings
-local function clean_cmd(profile, project_root)
+local function clean_cmd(profile)
     local build_dir = resolve_build_dir(profile)
     return { 'cmake', '--build', build_dir, '--target', 'clean' }
 end
 
---- Build conan install command from profile settings (supports v1 and v2)
-local function conan_install_cmd(profile, project_root, source_dir)
-    local build_dir = resolve_build_dir(profile)
+local cmake_internal_targets = {
+    all = true,
+    clean = true,
+    CLEAN = true,
+    depend = true,
+    cmake_check_build_system = true,
+    rebuild_cache = true,
+    edit_cache = true,
+    Makefile = true,
+}
 
-    local ver = detect_conan_version()
-    if not ver then
-        notify.error('Conan not found or version detection failed')
-        return nil
-    end
+--- Parse phony targets from build.ninja
+local function parse_ninja_targets(build_dir)
+    local ninja_file = build_dir .. '/build.ninja'
+    if vim.fn.filereadable(ninja_file) ~= 1 then return nil end
 
-    local cmd = { 'conan', 'install' }
-
-    local conan = profile.conan or {}
-
-    if conan.profile then
-        if ver >= 2 then
-            table.insert(cmd, '--profile:build=' .. conan.profile)
-            table.insert(cmd, '--profile:host=' .. conan.profile)
-        else
-            table.insert(cmd, '--profile')
-            table.insert(cmd, conan.profile)
+    local targets = {}
+    for _, line in ipairs(vim.fn.readfile(ninja_file)) do
+        local name, rule = line:match('^build ([^:]+): (%S+)')
+        if name and rule == 'phony' and not cmake_internal_targets[name] then
+            table.insert(targets, name)
         end
     end
+    table.sort(targets)
+    return targets
+end
 
-    if conan.remote then
-        table.insert(cmd, '-r')
-        table.insert(cmd, conan.remote)
-    end
+--- Parse .PHONY targets from top-level Makefile
+local function parse_makefile_targets(build_dir)
+    local makefile_path = build_dir .. '/Makefile'
+    if vim.fn.filereadable(makefile_path) ~= 1 then return nil end
 
-    if conan.options then
-        for _, opt in ipairs(conan.options) do
-            table.insert(cmd, opt)
+    local seen = {}
+    local targets = {}
+    for _, line in ipairs(vim.fn.readfile(makefile_path)) do
+        local rest = line:match('^%.PHONY%s*:%s*(.+)$')
+        if rest then
+            for name in rest:gmatch('%S+') do
+                if not cmake_internal_targets[name] and not seen[name] then
+                    seen[name] = true
+                    table.insert(targets, name)
+                end
+            end
         end
     end
+    table.sort(targets)
+    return targets
+end
 
-    table.insert(cmd, source_dir or '.')
-
-    if ver >= 2 then
-        table.insert(cmd, '-of')
-        table.insert(cmd, build_dir .. '/conan_libs')
-    else
-        table.insert(cmd, '-if')
-        table.insert(cmd, build_dir)
-    end
-
-    return cmd
+--- Try ninja first, fall back to makefile
+local function parse_build_targets(build_dir)
+    return parse_ninja_targets(build_dir) or parse_makefile_targets(build_dir)
 end
 
 --- Symlink compile_commands.json from build dir to project root
@@ -370,7 +349,7 @@ local function write_active_profile(config_path, new_active)
 end
 
 --- Generate default config lines for cmake project
-function M.default_config_lines(has_conan_project)
+function M.default_config_lines()
     local lines = {}
     table.insert(lines, '  cmake = {')
     table.insert(lines, '    -- src = "src",  -- path to CMakeLists.txt if not in project root')
@@ -382,16 +361,13 @@ function M.default_config_lines(has_conan_project)
     table.insert(lines, '        build_type = "Debug",')
     table.insert(lines, '        cmake_options = {},')
     table.insert(lines, '        build_args = {},')
+    table.insert(
+        lines,
+        '        -- conan = { profile = "other" },  -- overrides top-level conan config'
+    )
     table.insert(lines, '        -- targets = {')
     table.insert(lines, '        --   my_target = { cwd = "data", args = { "--verbose" } },')
     table.insert(lines, '        -- },')
-    if has_conan_project then
-        table.insert(lines, '        conan = {')
-        table.insert(lines, '          profile = "default",')
-        table.insert(lines, '          -- remote = "my-remote",')
-        table.insert(lines, '          -- options = { "--build=missing" },')
-        table.insert(lines, '        },')
-    end
     table.insert(lines, '      },')
     table.insert(lines, '    },')
     table.insert(lines, '  },')
@@ -426,21 +402,27 @@ function M.commands(config, project_root, rebuild_commands_fn)
     local cc = get_cmake_config(config)
     local source_dir = cc.src
 
+    -- Merge top-level conan config with profile-level override
+    local effective_conan = vim.tbl_extend('force', config.conan or {}, profile.conan or {})
+
     local cmds = {}
 
     local build_dir = resolve_build_dir(profile)
 
     cmds.configure = {
         name = 'CMake: Configure',
-        cmd = configure_cmd(profile, project_root, source_dir),
+        cmd = configure_cmd(profile, effective_conan, source_dir),
         cwd = project_root,
         errorformat = M.gcc_errorformat,
-        on_success = function() switch_compile_commands(profile, project_root) end,
+        on_success = function()
+            switch_compile_commands(profile, project_root)
+            if rebuild_commands_fn then rebuild_commands_fn() end
+        end,
     }
 
     cmds.build = {
         name = 'CMake: Build all',
-        cmd = build_cmd(profile, project_root),
+        cmd = build_cmd(profile),
         cwd = project_root,
         errorformat = M.gcc_errorformat,
     }
@@ -448,7 +430,7 @@ function M.commands(config, project_root, rebuild_commands_fn)
     if profile.target then
         cmds.build_target = {
             name = 'CMake: Build ' .. profile.target,
-            cmd = build_cmd(profile, project_root, profile.target),
+            cmd = build_cmd(profile, nil, profile.target),
             cwd = project_root,
             errorformat = M.gcc_errorformat,
         }
@@ -493,7 +475,7 @@ function M.commands(config, project_root, rebuild_commands_fn)
 
     cmds.clean = {
         name = 'CMake: Clean',
-        cmd = clean_cmd(profile, project_root),
+        cmd = clean_cmd(profile),
         cwd = project_root,
     }
 
@@ -513,13 +495,29 @@ function M.commands(config, project_root, rebuild_commands_fn)
         }
     end
 
-    if has_conan(project_root, source_dir) then
+    if conan_mod.has_conanfile(project_root, source_dir) or next(effective_conan) ~= nil then
         cmds.conan_install = {
             name = 'CMake: Conan install',
-            cmd = conan_install_cmd(profile, project_root, source_dir),
+            cmd = conan_mod.build_install_cmd(effective_conan, source_dir, build_dir),
             cwd = project_root,
             notify = true,
         }
+    end
+
+    -- Add commands for parsed build system targets (after configure)
+    local parsed_targets = parse_build_targets(build_dir)
+    if parsed_targets then
+        for _, target in ipairs(parsed_targets) do
+            if target ~= profile.target then
+                local key = 'cmake_target_' .. target:gsub('[^%w]', '_')
+                cmds[key] = {
+                    name = 'CMake: ' .. target,
+                    cmd = { 'cmake', '--build', build_dir, '--target', target },
+                    cwd = project_root,
+                    errorformat = M.gcc_errorformat,
+                }
+            end
+        end
     end
 
     -- Profile selection command

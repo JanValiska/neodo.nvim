@@ -3,6 +3,7 @@ local M = {}
 local notify = require('neodo.notify')
 local runner = require('neodo.runner')
 local cmake = require('neodo.cmake')
+local conan = require('neodo.conan')
 local cargo = require('neodo.cargo')
 local node = require('neodo.node')
 local makefile = require('neodo.makefile')
@@ -25,19 +26,19 @@ local function generate_default_config(project_types)
     local lines = { 'return {' }
 
     if project_types.cmake then
-        vim.list_extend(lines, cmake.default_config_lines(has_conan))
+        if has_conan then
+            vim.list_extend(lines, conan.default_config_lines())
+            table.insert(lines, '')
+        end
+        vim.list_extend(lines, cmake.default_config_lines())
+    elseif project_types.conan then
+        vim.list_extend(lines, conan.default_config_lines())
     elseif project_types.platformio then
         vim.list_extend(lines, platformio.default_config_lines())
     elseif project_types.esphome then
         vim.list_extend(lines, esphome.default_config_lines())
     else
         vim.list_extend(lines, cmake.commented_config_lines())
-        table.insert(lines, '')
-        if has_conan then
-            table.insert(lines, '  commands = {')
-            table.insert(lines, '    conan_install = "conan install . --build=missing",')
-            table.insert(lines, '  },')
-        end
     end
 
     table.insert(lines, '')
@@ -109,6 +110,11 @@ local function build_commands(config, project_root, project_types)
         add(esphome.commands(config, project_root, rebuild))
     end
 
+    -- Standalone conan (not cmake — cmake handles its own conan install)
+    if project_types.conan and not project_types.cmake then
+        add(conan.commands(config, project_root))
+    end
+
     if project_types.rust then add(cargo.commands(config, project_root)) end
 
     if project_types.node then add(node.commands(config, project_root)) end
@@ -164,7 +170,7 @@ function M.load(project_root, project_types)
     if vim.fn.filereadable(config_path) == 1 then config = load_config(config_path) or {} end
 
     -- Type keys that map 1:1 to config section names
-    local configurable_types = { 'cmake', 'platformio', 'esphome', 'rust', 'node', 'makefile' }
+    local configurable_types = { 'cmake', 'conan', 'platformio', 'esphome', 'rust', 'node', 'makefile' }
 
     -- Sync detected subdirs into config as `src` (so modules can resolve cwd).
     -- Also force-activate types declared in config even without filesystem detection.
