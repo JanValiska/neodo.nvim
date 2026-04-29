@@ -96,8 +96,14 @@ local cmake_internal_targets = {
     CLEAN = true,
     depend = true,
     cmake_check_build_system = true,
+    cmake_force = true,
     rebuild_cache = true,
     edit_cache = true,
+    help = true,
+    preinstall = true,
+    list_install_components = true,
+    ['install/local'] = true,
+    ['install/strip'] = true,
     Makefile = true,
 }
 
