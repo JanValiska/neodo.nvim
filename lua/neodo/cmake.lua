@@ -101,6 +101,13 @@ local cmake_internal_targets = {
     Makefile = true,
 }
 
+local function is_internal_target(name)
+    if cmake_internal_targets[name] then return true end
+    if name:match('/fast$') then return true end -- CMake fast build (skips dep check)
+    if name:match('_autogen') then return true end -- Qt MOC/UIC auto-generation
+    return false
+end
+
 --- Parse phony targets from build.ninja
 local function parse_ninja_targets(build_dir)
     local ninja_file = build_dir .. '/build.ninja'
@@ -109,7 +116,7 @@ local function parse_ninja_targets(build_dir)
     local targets = {}
     for _, line in ipairs(vim.fn.readfile(ninja_file)) do
         local name, rule = line:match('^build ([^:]+): (%S+)')
-        if name and rule == 'phony' and not cmake_internal_targets[name] then
+        if name and rule == 'phony' and not is_internal_target(name) then
             table.insert(targets, name)
         end
     end
@@ -128,7 +135,7 @@ local function parse_makefile_targets(build_dir)
         local rest = line:match('^%.PHONY%s*:%s*(.+)$')
         if rest then
             for name in rest:gmatch('%S+') do
-                if not cmake_internal_targets[name] and not seen[name] then
+                if not is_internal_target(name) and not seen[name] then
                     seen[name] = true
                     table.insert(targets, name)
                 end
