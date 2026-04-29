@@ -105,6 +105,7 @@ function M.run(command)
         -- Set buffer name to the actual command being run
         local cmdstring = type(cmd) == 'table' and table.concat(cmd, ' ') or cmd
         pcall(vim.api.nvim_buf_set_name, job.buf_id, '[neodo] ' .. (cmdstring or '?'))
+        vim.b[job.buf_id].neodo_command_name = command.name
 
         vim.api.nvim_set_option_value('number', false, { scope = 'local' })
         vim.api.nvim_set_option_value('relativenumber', false, { scope = 'local' })
