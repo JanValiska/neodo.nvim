@@ -39,6 +39,13 @@ local function on_event(job_id, data, event)
             if job.command.on_success then
                 job.command.on_success()
             end
+            if job.command.auto_close and job.buf_id then
+                vim.schedule(function()
+                    if vim.api.nvim_buf_is_valid(job.buf_id) then
+                        vim.api.nvim_buf_delete(job.buf_id, { force = true })
+                    end
+                end)
+            end
         elseif data == 130 then
             notify.warning('Interrupted', job.command.name)
         else
